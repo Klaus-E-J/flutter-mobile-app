@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/routes/app_routes.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_section_header.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -41,9 +44,10 @@ class DashboardScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const _DashboardHeader(),
+
                       const SizedBox(height: 32),
 
-                      _SectionTitle(
+                      const AppSectionHeader(
                         title: 'Acesso rápido',
                       ),
 
@@ -128,13 +132,50 @@ class DashboardScreen extends StatelessWidget {
 
                       const SizedBox(height: 32),
 
-                      _SectionTitle(
+                      const AppSectionHeader(
                         title: 'Fluxo de correção',
                       ),
 
                       const SizedBox(height: 16),
 
                       const _CorrectionFlowCard(),
+
+                      const SizedBox(height: 32),
+
+                      const AppSectionHeader(
+                        title: 'Desenvolvimento',
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      AppCard(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
+                        onTap: () {
+                          Navigator.pushNamed(
+                            context,
+                            AppRoutes.uiPreview,
+                          );
+                        },
+                        child: const ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            Icons.widgets_outlined,
+                          ),
+                          title: Text(
+                            'Componentes da interface',
+                          ),
+                          subtitle: Text(
+                            'Visualizar os componentes reutilizáveis '
+                          'da aplicação.',
+                          ),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -152,6 +193,8 @@ class _DashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -165,30 +208,10 @@ class _DashboardHeader extends StatelessWidget {
         Text(
           'Gerencie suas turmas, provas e correções.',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Theme.of(context)
-            .colorScheme
-            .onSurfaceVariant,
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({
-    required this.title,
-  });
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-        fontWeight: FontWeight.w600,
-      ),
     );
   }
 }
@@ -210,39 +233,34 @@ class _DashboardCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                icon,
-                size: 28,
-                color: colorScheme.primary,
-              ),
-              const Spacer(),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 28,
+            color: colorScheme.primary,
           ),
-        ),
+          const Spacer(),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -255,50 +273,52 @@ class _CorrectionFlowCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Icon(
-              Icons.document_scanner_outlined,
-              size: 32,
-              color: colorScheme.primary,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Corrigir uma prova',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Icon(
+            Icons.document_scanner_outlined,
+            size: 32,
+            color: colorScheme.primary,
+          ),
+
+          const SizedBox(width: 16),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Corrigir uma prova',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Leia o QR Code, selecione o gabarito e '
-                  'inicie a leitura das folhas de resposta.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Leia o QR Code, selecione o gabarito e '
+                'inicie a leitura das folhas de resposta.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            FilledButton(
-              onPressed: () {
-                Navigator.pushNamed(
-                  context,
-                  AppRoutes.correction,
-                );
-              },
-              child: const Text('Iniciar'),
-            ),
-          ],
-        ),
+          ),
+
+          const SizedBox(width: 16),
+
+          AppButton(
+            label: 'Iniciar',
+            onPressed: () {
+              Navigator.pushNamed(
+                context,
+                AppRoutes.correction,
+              );
+            },
+          ),
+        ],
       ),
     );
   }

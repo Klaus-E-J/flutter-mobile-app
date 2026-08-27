@@ -9,6 +9,8 @@ import '../../features/export/export_screen.dart';
 import '../../features/results/results_screen.dart';
 import '../../features/statistics/statistics_screen.dart';
 
+import '../../features/ui_preview/ui_preview_screen.dart';
+
 abstract final class AppRoutes {
   static const access = '/';
   static const dashboard = '/dashboard';
@@ -18,6 +20,7 @@ abstract final class AppRoutes {
   static const results = '/results';
   static const statistics = '/statistics';
   static const export = '/export';
+  static const uiPreview = '/ui-preview';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -44,6 +47,9 @@ abstract final class AppRoutes {
 
       case export:
         return _page(const ExportScreen());
+
+      case uiPreview:
+        return _page(const UiPreviewScreen());
 
       default:
         return _page(
