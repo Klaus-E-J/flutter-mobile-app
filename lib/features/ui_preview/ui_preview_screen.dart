@@ -28,16 +28,14 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('UI Preview'),
-      ),
+      appBar: AppBar(title: const Text('UI Preview')),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           const AppHeader(
             title: 'Componentes UI',
             subtitle:
-            'Catálogo interno dos componentes reutilizáveis da aplicação.',
+                'Catálogo interno dos componentes reutilizáveis da aplicação.',
           ),
 
           const SizedBox(height: 32),
@@ -52,20 +50,17 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
+                    AppButton(label: 'Primário', onPressed: () {}),
                     AppButton(
-                      label: 'Primário',
+                      label: 'Secundário',
+                      variant: AppButtonVariant.secondary,
                       onPressed: () {},
                     ),
-                     AppButton(
-                       label: 'Secundário',
-                       variant: AppButtonVariant.secondary,
-                       onPressed: () {},
-                     ),
-                     AppButton(
-                       label: 'Texto',
-                       variant: AppButtonVariant.text,
-                       onPressed: () {},
-                     ),
+                    AppButton(
+                      label: 'Texto',
+                      variant: AppButtonVariant.text,
+                      onPressed: () {},
+                    ),
                   ],
                 ),
 
@@ -80,15 +75,12 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                       icon: Icons.add,
                       onPressed: () {},
                     ),
-                     AppButton(
-                       label: 'Carregando',
-                       isLoading: true,
-                       onPressed: () {},
-                     ),
-                     const AppButton(
-                       label: 'Desabilitado',
-                       onPressed: null,
-                     ),
+                    AppButton(
+                      label: 'Carregando',
+                      isLoading: true,
+                      onPressed: () {},
+                    ),
+                    const AppButton(label: 'Desabilitado', onPressed: null),
                   ],
                 ),
               ],
@@ -135,9 +127,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                           children: [
                             Text(
                               '3º Ano A',
-                              style: Theme.of(context)
-                              .textTheme
-                              .titleMedium,
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const SizedBox(height: 4),
                             const Text('32 alunos'),
@@ -152,11 +142,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
 
                 const SizedBox(height: 12),
 
-                const AppCard(
-                  child: Text(
-                    'Card simples para conteúdo.',
-                  ),
-                ),
+                const AppCard(child: Text('Card simples para conteúdo.')),
               ],
             ),
           ),
@@ -170,8 +156,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                   height: 180,
                   child: AppEmptyState(
                     title: 'Nenhuma prova cadastrada',
-                    description:
-                    'Crie uma prova para começar.',
+                    description: 'Crie uma prova para começar.',
                     icon: Icons.description_outlined,
                   ),
                 ),
@@ -180,9 +165,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
 
                 const SizedBox(
                   height: 150,
-                  child: AppLoading(
-                    message: 'Carregando...',
-                  ),
+                  child: AppLoading(message: 'Carregando...'),
                 ),
 
                 const Divider(height: 32),
@@ -190,8 +173,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                 SizedBox(
                   height: 180,
                   child: AppErrorState(
-                    description:
-                    'Verifique sua conexão e tente novamente.',
+                    description: 'Verifique sua conexão e tente novamente.',
                     onRetry: () {},
                   ),
                 ),
@@ -209,8 +191,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                 AppDialog.show(
                   context: context,
                   title: 'Exemplo de diálogo',
-                  message:
-                  'Este é o diálogo reutilizável da aplicação.',
+                  message: 'Este é o diálogo reutilizável da aplicação.',
                   cancelLabel: 'Cancelar',
                   confirmLabel: 'Confirmar',
                 );
@@ -234,22 +215,19 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
 
   Widget _buildSection(
     BuildContext context, {
-      required String title,
-      required Widget child,
-    }) {
+    required String title,
+    required Widget child,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(top: 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           child,
         ],
       ),
     );
-    }
+  }
 }

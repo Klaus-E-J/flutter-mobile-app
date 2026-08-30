@@ -5,10 +5,6 @@ class ExamsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('Provas'),
-      ),
-    );
+    return const Scaffold(body: Center(child: Text('Provas')));
   }
 }
