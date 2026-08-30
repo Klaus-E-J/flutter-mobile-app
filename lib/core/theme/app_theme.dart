@@ -22,10 +22,7 @@ abstract final class AppTheme {
       inputDecorationTheme: const InputDecorationTheme(
         border: OutlineInputBorder(),
       ),
-      cardTheme: const CardThemeData(
-        elevation: 0,
-        margin: EdgeInsets.zero,
-      ),
+      cardTheme: const CardThemeData(elevation: 0, margin: EdgeInsets.zero),
     );
   }
 }

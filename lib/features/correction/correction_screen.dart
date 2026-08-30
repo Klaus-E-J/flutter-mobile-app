@@ -5,10 +5,6 @@ class CorrectionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('Correção'),
-      ),
-    );
+    return const Scaffold(body: Center(child: Text('Correção')));
   }
 }

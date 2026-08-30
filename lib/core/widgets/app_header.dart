@@ -19,24 +19,15 @@ class AppHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (leading != null) ...[
-          leading!,
-          const SizedBox(width: 12),
-        ],
+        if (leading != null) ...[leading!, const SizedBox(width: 12)],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
+              Text(title, style: Theme.of(context).textTheme.headlineSmall),
               if (subtitle != null) ...[
                 const SizedBox(height: 4),
-                Text(
-                  subtitle!,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium),
               ],
             ],
           ),
