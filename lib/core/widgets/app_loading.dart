@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppLoading extends StatelessWidget {
-  const AppLoading({
-    super.key,
-    this.message,
-  });
+  const AppLoading({super.key, this.message});
 
   final String? message;
 
@@ -15,10 +12,7 @@ class AppLoading extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const CircularProgressIndicator(),
-          if (message != null) ...[
-            const SizedBox(height: 16),
-            Text(message!),
-          ],
+          if (message != null) ...[const SizedBox(height: 16), Text(message!)],
         ],
       ),
     );
