@@ -53,18 +53,12 @@ abstract final class AppRoutes {
 
       default:
         return _page(
-          const Scaffold(
-            body: Center(
-              child: Text('Página não encontrada'),
-            ),
-          ),
+          const Scaffold(body: Center(child: Text('Página não encontrada'))),
         );
     }
   }
 
   static MaterialPageRoute<dynamic> _page(Widget child) {
-    return MaterialPageRoute(
-      builder: (_) => child,
-    );
+    return MaterialPageRoute(builder: (_) => child);
   }
 }

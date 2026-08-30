@@ -23,13 +23,13 @@ class AppDialog {
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(cancelLabel),
               ),
-              FilledButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  onConfirm?.call();
-                },
-                child: Text(confirmLabel),
-              ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onConfirm?.call();
+              },
+              child: Text(confirmLabel),
+            ),
           ],
         );
       },

@@ -5,10 +5,6 @@ class ResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('Resultados'),
-      ),
-    );
+    return const Scaffold(body: Center(child: Text('Resultados')));
   }
 }

@@ -22,10 +22,7 @@ class AppEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 48,
-            ),
+            Icon(icon, size: 48),
             const SizedBox(height: 16),
             Text(
               title,
@@ -40,10 +37,7 @@ class AppEmptyState extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
-            if (action != null) ...[
-              const SizedBox(height: 20),
-              action!,
-            ],
+            if (action != null) ...[const SizedBox(height: 20), action!],
           ],
         ),
       ),

@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum AppButtonVariant {
-  primary,
-  secondary,
-  text,
-}
+enum AppButtonVariant { primary, secondary, text }
 
 class AppButton extends StatelessWidget {
   const AppButton({
@@ -58,10 +54,7 @@ class AppButton extends StatelessWidget {
       return button;
     }
 
-    return SizedBox(
-      width: double.infinity,
-      child: button,
-    );
+    return SizedBox(width: double.infinity, child: button);
   }
 
   Widget _buildIcon() {
@@ -69,9 +62,7 @@ class AppButton extends StatelessWidget {
       return const SizedBox(
         width: 18,
         height: 18,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-        ),
+        child: CircularProgressIndicator(strokeWidth: 2),
       );
     }
 
