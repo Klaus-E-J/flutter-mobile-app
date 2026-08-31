@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/routes/app_routes.dart';
-
-//import '../../core/widgets/app_widgets.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_header.dart';
+import '../../core/widgets/app_text_field.dart';
 
 class AccessScreen extends StatefulWidget {
   const AccessScreen({super.key});
@@ -12,7 +15,20 @@ class AccessScreen extends StatefulWidget {
 }
 
 class _AccessScreenState extends State<AccessScreen> {
-  bool _showCodeInput = false;
+  _AccessView _view = _AccessView.chooseAccess;
+  bool _codeSaved = false;
+
+  final TextEditingController _codeController = TextEditingController();
+
+  // Mock temporário.
+  // O valor real será fornecido pela camada de autenticação posteriormente.
+  static const String _mockAccessCode = 'AVALIA-2026-7K4P';
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,8 +38,18 @@ class _AccessScreenState extends State<AccessScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: _showCodeInput ? _buildExistingAccess() : _buildWelcome(),
+              constraints: const BoxConstraints(
+                maxWidth: 480,
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: switch (_view) {
+                  _AccessView.chooseAccess => _buildChooseAccess(),
+                  _AccessView.firstAccess => _buildFirstAccess(),
+                  _AccessView.showCode => _buildShowCode(),
+                  _AccessView.existingCode => _buildExistingCode(),
+                },
+              ),
             ),
           ),
         ),
@@ -31,144 +57,374 @@ class _AccessScreenState extends State<AccessScreen> {
     );
   }
 
-  Widget _buildWelcome() {
+  Widget _buildChooseAccess() {
     return Column(
+      key: const ValueKey(_AccessView.chooseAccess),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildLogo(),
-
-        const SizedBox(height: 40),
-
-        Text(
-          'Acesse o Avalia Pro',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+        const AppHeader(
+          title: 'Acesse o Avalia Pro',
+          subtitle:
+          'Entre no aplicativo para gerenciar suas turmas, '
+        'provas e correções.',
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: 32),
 
-        Text(
-          'Use seu acesso para gerenciar turmas, '
-          'provas e correções.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyLarge
-              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-        ),
-
-        const SizedBox(height: 40),
-
-        FilledButton(
-          onPressed: _createAccess,
-          child: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14),
-            child: Text('Criar meu acesso'),
+        AppCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Primeiro acesso',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Crie seu acesso para começar a usar o aplicativo.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 20),
+              AppButton(
+                label: 'Criar meu acesso',
+                icon: Icons.add_circle_outline,
+                expanded: true,
+                onPressed: () {
+                  setState(() {
+                    _view = _AccessView.firstAccess;
+                    _codeSaved = false;
+                  });
+                },
+              ),
+            ],
           ),
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
 
-        OutlinedButton(
-          onPressed: () {
-            setState(() {
-              _showCodeInput = true;
-            });
-          },
-          child: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14),
-            child: Text('Já tenho um código'),
+        AppCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Já tenho um código',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Use um código de acesso que já foi criado anteriormente.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 20),
+              AppButton(
+                label: 'Usar código existente',
+                icon: Icons.key_outlined,
+                variant: AppButtonVariant.secondary,
+                expanded: true,
+                onPressed: () {
+                  setState(() {
+                    _view = _AccessView.existingCode;
+                    _codeController.clear();
+                  });
+                },
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildExistingAccess() {
+  Widget _buildFirstAccess() {
     return Column(
+      key: const ValueKey(_AccessView.firstAccess),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        IconButton(
-          alignment: Alignment.centerLeft,
-          padding: EdgeInsets.zero,
+        _buildBackButton(
           onPressed: () {
             setState(() {
-              _showCodeInput = false;
+              _view = _AccessView.chooseAccess;
             });
           },
-          icon: const Icon(Icons.arrow_back),
         ),
 
         const SizedBox(height: 24),
 
-        Text(
-          'Acessar com código',
-          style: Theme.of(context).textTheme.headlineMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
-        ),
-
-        const SizedBox(height: 12),
-
-        Text(
-          'Digite o código do seu acesso para continuar.',
-          style: Theme.of(context).textTheme.bodyLarge
-              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        const AppHeader(
+          title: 'Criar meu acesso',
+          subtitle:
+          'Será criado um código para identificar seu acesso '
+        'ao aplicativo.',
         ),
 
         const SizedBox(height: 32),
 
-        TextField(
-          decoration: const InputDecoration(
-            labelText: 'Código de acesso',
-            hintText: 'Digite seu código',
-            prefixIcon: Icon(Icons.key_outlined),
+        AppCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Icon(
+                Icons.vpn_key_outlined,
+                size: 48,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Seu código de acesso',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'No fluxo real, esse código será fornecido pela '
+              'camada de autenticação.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              AppButton(
+                label: 'Gerar meu código',
+                icon: Icons.vpn_key_outlined,
+                expanded: true,
+                onPressed: () {
+                  setState(() {
+                    _view = _AccessView.showCode;
+                    _codeSaved = false;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildShowCode() {
+    return Column(
+      key: const ValueKey(_AccessView.showCode),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AppHeader(
+          title: 'Seu código de acesso',
+          subtitle:
+          'Guarde este código. Ele será usado para acessar '
+        'novamente seus dados.',
+        ),
+
+        const SizedBox(height: 32),
+
+        AppCard(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Text(
+                'Código',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+
+              const SizedBox(height: 12),
+
+              SelectableText(
+                _mockAccessCode,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              AppButton(
+                label: 'Copiar código',
+                icon: Icons.copy_outlined,
+                variant: AppButtonVariant.secondary,
+                expanded: true,
+                onPressed: _copyAccessCode,
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        AppCard(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: _codeSaved,
+                onChanged: (value) {
+                  setState(() {
+                    _codeSaved = value ?? false;
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    'Eu salvei meu código em um lugar seguro.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
 
         const SizedBox(height: 20),
 
-        FilledButton(
-          onPressed: _useExistingCode,
-          child: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14),
-            child: Text('Continuar'),
+        AppButton(
+          label: 'Continuar',
+          expanded: true,
+          onPressed: _codeSaved
+          ? () {
+            _goToDashboard();
+          }
+          : null,
+        ),
+
+        const SizedBox(height: 12),
+
+        AppButton(
+          label: 'Voltar',
+          variant: AppButtonVariant.text,
+          expanded: true,
+          onPressed: () {
+            setState(() {
+              _view = _AccessView.firstAccess;
+              _codeSaved = false;
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExistingCode() {
+    return Column(
+      key: const ValueKey(_AccessView.existingCode),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildBackButton(
+          onPressed: () {
+            setState(() {
+              _view = _AccessView.chooseAccess;
+            });
+          },
+        ),
+
+        const SizedBox(height: 24),
+
+        const AppHeader(
+          title: 'Usar código existente',
+          subtitle:
+          'Digite o código de acesso que você já possui.',
+        ),
+
+        const SizedBox(height: 32),
+
+        AppCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppTextField(
+                controller: _codeController,
+                label: 'Código de acesso',
+                hint: 'Digite ou cole seu código',
+                prefixIcon: Icons.key_outlined,
+                onChanged: (_) {
+                  // A validação continua sendo simulada nesta entrega.
+                  setState(() {});
+                },
+              ),
+
+              const SizedBox(height: 20),
+
+              AppButton(
+                label: 'Entrar',
+                icon: Icons.login_outlined,
+                expanded: true,
+                onPressed: _codeController.text.trim().isEmpty
+                ? null
+                : _validateExistingCode,
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildLogo() {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Container(
-        width: 72,
-        height: 72,
-        decoration: BoxDecoration(
-          color: colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Icon(
-          Icons.fact_check_outlined,
-          size: 40,
-          color: colorScheme.onPrimaryContainer,
-        ),
+  Widget _buildBackButton({
+    required VoidCallback onPressed,
+  }) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: IconButton(
+        tooltip: 'Voltar',
+        onPressed: onPressed,
+        icon: const Icon(Icons.arrow_back),
       ),
     );
   }
 
-  void _createAccess() {
-    // Fluxo real de criação de acesso será implementado posteriormente.
-    //
-    // Por enquanto, simulamos que o acesso foi criado
-    // para permitir testar o fluxo da aplicação.
-    Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+  Future<void> _copyAccessCode() async {
+    await Clipboard.setData(
+      const ClipboardData(
+        text: _mockAccessCode,
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Código copiado.'),
+      ),
+    );
   }
 
-  void _useExistingCode() {
-    // Validação real do código será implementada posteriormente.
-    //
-    // Por enquanto, simulamos um código válido.
-    Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+  void _validateExistingCode() {
+    final code = _codeController.text.trim();
+
+    if (code == _mockAccessCode) {
+      _goToDashboard();
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Código de acesso inválido.'),
+      ),
+    );
   }
+
+  void _goToDashboard() {
+    Navigator.pushReplacementNamed(
+      context,
+      AppRoutes.dashboard,
+    );
+  }
+}
+
+enum _AccessView {
+  chooseAccess,
+  firstAccess,
+  showCode,
+  existingCode,
 }
