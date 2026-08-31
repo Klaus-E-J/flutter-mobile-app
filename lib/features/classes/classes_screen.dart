@@ -119,7 +119,11 @@ class _ClassesScreenState extends State<ClassesScreen> {
         onDestinationSelected: (index) {
           switch (index) {
             case 0:
-              Navigator.pushReplacementNamed(context, AppRoutes.dashboard,);
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                AppRoutes.dashboard,
+                (route) => false,
+              );
               break;
 
             case 1:
@@ -127,15 +131,15 @@ class _ClassesScreenState extends State<ClassesScreen> {
               break;
 
             case 2:
-              Navigator.pushReplacementNamed(context, AppRoutes.exams,);
+              Navigator.pushReplacementNamed(context, AppRoutes.exams);
               break;
 
             case 3:
-              Navigator.pushReplacementNamed(context, AppRoutes.correction,);
+              Navigator.pushReplacementNamed(context, AppRoutes.correction);
               break;
 
             case 4:
-              // opções?
+              // Mais
               break;
           }
         },
