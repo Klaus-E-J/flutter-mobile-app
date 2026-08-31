@@ -22,8 +22,12 @@ class _AccessScreenState extends State<AccessScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: _showCodeInput ? _buildExistingAccess() : _buildWelcome(),
+              constraints: const BoxConstraints(
+                maxWidth: 480,
+              ),
+              child: _showCodeInput
+              ? _buildExistingAccess()
+              : _buildWelcome(),
             ),
           ),
         ),
@@ -42,18 +46,22 @@ class _AccessScreenState extends State<AccessScreen> {
         Text(
           'Acesse o Avalia Pro',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
 
         const SizedBox(height: 12),
 
         Text(
           'Use seu acesso para gerenciar turmas, '
-          'provas e correções.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyLarge
-              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        'provas e correções.',
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          color: Theme.of(context)
+          .colorScheme
+          .onSurfaceVariant,
+        ),
         ),
 
         const SizedBox(height: 40),
@@ -102,16 +110,20 @@ class _AccessScreenState extends State<AccessScreen> {
 
         Text(
           'Acessar com código',
-          style: Theme.of(context).textTheme.headlineMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
 
         const SizedBox(height: 12),
 
         Text(
           'Digite o código do seu acesso para continuar.',
-          style: Theme.of(context).textTheme.bodyLarge
-              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: Theme.of(context)
+            .colorScheme
+            .onSurfaceVariant,
+          ),
         ),
 
         const SizedBox(height: 32),
@@ -162,13 +174,19 @@ class _AccessScreenState extends State<AccessScreen> {
     //
     // Por enquanto, simulamos que o acesso foi criado
     // para permitir testar o fluxo da aplicação.
-    Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    Navigator.pushReplacementNamed(
+      context,
+      AppRoutes.dashboard,
+    );
   }
 
   void _useExistingCode() {
     // Validação real do código será implementada posteriormente.
     //
     // Por enquanto, simulamos um código válido.
-    Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    Navigator.pushReplacementNamed(
+      context,
+      AppRoutes.dashboard,
+    );
   }
 }
