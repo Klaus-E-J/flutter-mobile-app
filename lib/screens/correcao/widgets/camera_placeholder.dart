@@ -2,178 +2,76 @@ import 'package:flutter/material.dart';
 
 import '../models/correcao_models.dart';
 
-/// Widget que simula um viewfinder de câmera.
+/// Widget reutilizável que simula o viewfinder de câmera.
 ///
-/// Exibe um placeholder visual escuro com moldura e ícone de câmera,
-/// junto com botões para simular leitura com sucesso ou erro.
-/// Usado nas telas de leitura de QR Code, gabarito e captura de provas.
+/// Layout fiel ao Figma: container escuro com moldura interna
+/// e texto/ícone centralizado. Sem botões — o botão de ação
+/// fica na tela que consome este widget.
 class CameraPlaceholder extends StatelessWidget {
   const CameraPlaceholder({
     super.key,
-    required this.titulo,
-    this.descricao,
-    required this.status,
-    this.onSimularSucesso,
-    this.onSimularErro,
-    this.mensagemErro,
-    this.mensagemSucesso,
-    this.child,
+    required this.label,
+    this.status = LeituraStatus.aguardando,
+    this.icon,
   });
 
-  final String titulo;
-  final String? descricao;
-  final LeituraStatus status;
-  final VoidCallback? onSimularSucesso;
-  final VoidCallback? onSimularErro;
-  final String? mensagemErro;
-  final String? mensagemSucesso;
+  /// Texto exibido no centro do viewfinder (ex: "GABARITO", "OMR").
+  final String label;
 
-  /// Widget extra a exibir abaixo dos botões (ex: contador de progresso).
-  final Widget? child;
+  /// Estado atual da leitura (altera o conteúdo visual).
+  final LeituraStatus status;
+
+  /// Ícone opcional exibido ao lado do label.
+  final Widget? icon;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Column(
-      children: [
-        // Instrução
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Column(
-            children: [
-              Text(
-                titulo,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: AspectRatio(
+        aspectRatio: 4 / 3,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Moldura interna (scan frame)
+            Container(
+              margin: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 2,
                 ),
-                textAlign: TextAlign.center,
               ),
-              if (descricao != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  descricao!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ],
-          ),
-        ),
-
-        // Viewfinder simulado
-        Expanded(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A2E),
-              borderRadius: BorderRadius.circular(16),
             ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Frame / moldura do viewfinder
-                _buildFrame(colorScheme),
 
-                // Conteúdo central baseado no status
-                _buildConteudoStatus(theme, colorScheme),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Feedback de erro/sucesso
-        if (status == LeituraStatus.erro && mensagemErro != null)
-          _buildFeedbackBanner(
-            context,
-            mensagemErro!,
-            colorScheme.error,
-            colorScheme.errorContainer,
-            Icons.error_outline,
-          ),
-
-        if (status == LeituraStatus.sucesso && mensagemSucesso != null)
-          _buildFeedbackBanner(
-            context,
-            mensagemSucesso!,
-            colorScheme.primary,
-            colorScheme.primaryContainer,
-            Icons.check_circle_outline,
-          ),
-
-        // Botões de simulação
-        if (status == LeituraStatus.aguardando ||
-            status == LeituraStatus.erro)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
-              children: [
-                if (onSimularSucesso != null)
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: onSimularSucesso,
-                      icon: const Icon(Icons.check, size: 18),
-                      label: const Text('Simular Sucesso'),
-                    ),
-                  ),
-                if (onSimularSucesso != null && onSimularErro != null)
-                  const SizedBox(width: 12),
-                if (onSimularErro != null)
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: onSimularErro,
-                      icon: const Icon(Icons.close, size: 18),
-                      label: const Text('Simular Erro'),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-        // Widget extra (ex: progresso)
-        ?child,
-
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  Widget _buildFrame(ColorScheme colorScheme) {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: colorScheme.primary.withValues(alpha: 0.5),
-            width: 2,
-          ),
+            // Conteúdo central
+            _buildConteudo(colorScheme),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildConteudoStatus(ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildConteudo(ColorScheme colorScheme) {
     switch (status) {
       case LeituraStatus.aguardando:
-        return Column(
+        return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.camera_alt_outlined,
-              size: 48,
-              color: Colors.white.withValues(alpha: 0.6),
-            ),
-            const SizedBox(height: 12),
+            if (icon != null) ...[icon!, const SizedBox(width: 8)],
             Text(
-              'Aponte a câmera',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.7),
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
@@ -184,93 +82,37 @@ class CameraPlaceholder extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 40,
-              height: 40,
+              width: 36,
+              height: 36,
               child: CircularProgressIndicator(
                 strokeWidth: 3,
                 color: colorScheme.primary,
               ),
             ),
             const SizedBox(height: 12),
-            Text(
+            const Text(
               'Processando...',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.7),
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
               ),
             ),
           ],
         );
 
       case LeituraStatus.sucesso:
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.check_circle,
-              size: 56,
-              color: colorScheme.primary,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Leitura realizada!',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.9),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+        return Icon(
+          Icons.check_circle,
+          size: 56,
+          color: colorScheme.primary,
         );
 
       case LeituraStatus.erro:
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 56,
-              color: colorScheme.error,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Falha na leitura',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.9),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+        return Icon(
+          Icons.error_outline,
+          size: 56,
+          color: colorScheme.error,
         );
     }
-  }
-
-  Widget _buildFeedbackBanner(
-    BuildContext context,
-    String mensagem,
-    Color iconColor,
-    Color bgColor,
-    IconData icon,
-  ) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: bgColor.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: iconColor),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              mensagem,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: iconColor,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

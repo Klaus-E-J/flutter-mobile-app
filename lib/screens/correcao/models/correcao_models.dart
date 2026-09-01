@@ -12,6 +12,7 @@ class ProvaCorrecao {
     required this.disciplina,
     required this.totalQuestoes,
     required this.totalAlunos,
+    this.provaIndividual = false,
     this.dataCriacao,
   });
 
@@ -21,6 +22,12 @@ class ProvaCorrecao {
   final String disciplina;
   final int totalQuestoes;
   final int totalAlunos;
+
+  /// Se `true`, cada aluno tem uma sequência diferente de questões
+  /// e o QR Code precisa ser lido antes de cada gabarito.
+  /// Se `false`, a sequência é a mesma para todos (QR lido uma vez).
+  final bool provaIndividual;
+
   final DateTime? dataCriacao;
 }
 
@@ -66,6 +73,7 @@ List<ProvaCorrecao> gerarProvasMock() {
       disciplina: 'Português',
       totalQuestoes: 15,
       totalAlunos: 28,
+      provaIndividual: true,
       dataCriacao: DateTime(2026, 8, 25),
     ),
     ProvaCorrecao(
@@ -75,6 +83,7 @@ List<ProvaCorrecao> gerarProvasMock() {
       disciplina: 'Ciências',
       totalQuestoes: 20,
       totalAlunos: 42,
+      provaIndividual: true,
       dataCriacao: DateTime(2026, 8, 28),
     ),
     ProvaCorrecao(
