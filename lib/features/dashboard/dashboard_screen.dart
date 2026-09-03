@@ -14,9 +14,7 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'Avalia Pro',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600),
         ),
         actions: [
           IconButton(
@@ -37,9 +35,7 @@ class DashboardScreen extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 1100,
-                  ),
+                  constraints: const BoxConstraints(maxWidth: 1100),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -47,9 +43,7 @@ class DashboardScreen extends StatelessWidget {
 
                       const SizedBox(height: 32),
 
-                      const AppSectionHeader(
-                        title: 'Acesso rápido',
-                      ),
+                      const AppSectionHeader(title: 'Acesso rápido'),
 
                       const SizedBox(height: 16),
 
@@ -66,10 +60,7 @@ class DashboardScreen extends StatelessWidget {
                             title: 'Turmas',
                             description: 'Gerenciar turmas e alunos',
                             onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.classes,
-                              );
+                              Navigator.pushNamed(context, AppRoutes.classes);
                             },
                           ),
                           _DashboardCard(
@@ -77,10 +68,7 @@ class DashboardScreen extends StatelessWidget {
                             title: 'Provas',
                             description: 'Criar e gerenciar provas',
                             onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.exams,
-                              );
+                              Navigator.pushNamed(context, AppRoutes.exams);
                             },
                           ),
                           _DashboardCard(
@@ -99,10 +87,7 @@ class DashboardScreen extends StatelessWidget {
                             title: 'Resultados',
                             description: 'Consultar provas corrigidas',
                             onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.results,
-                              );
+                              Navigator.pushNamed(context, AppRoutes.results);
                             },
                           ),
                           _DashboardCard(
@@ -121,10 +106,7 @@ class DashboardScreen extends StatelessWidget {
                             title: 'Exportar',
                             description: 'Exportar resultados',
                             onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.export,
-                              );
+                              Navigator.pushNamed(context, AppRoutes.export);
                             },
                           ),
                         ],
@@ -132,9 +114,7 @@ class DashboardScreen extends StatelessWidget {
 
                       const SizedBox(height: 32),
 
-                      const AppSectionHeader(
-                        title: 'Fluxo de correção',
-                      ),
+                      const AppSectionHeader(title: 'Fluxo de correção'),
 
                       const SizedBox(height: 16),
 
@@ -142,9 +122,7 @@ class DashboardScreen extends StatelessWidget {
 
                       const SizedBox(height: 32),
 
-                      const AppSectionHeader(
-                        title: 'Desenvolvimento',
-                      ),
+                      const AppSectionHeader(title: 'Desenvolvimento'),
 
                       const SizedBox(height: 16),
 
@@ -154,26 +132,17 @@ class DashboardScreen extends StatelessWidget {
                           vertical: 8,
                         ),
                         onTap: () {
-                          Navigator.pushNamed(
-                            context,
-                            AppRoutes.uiPreview,
-                          );
+                          Navigator.pushNamed(context, AppRoutes.uiPreview);
                         },
                         child: const ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            Icons.widgets_outlined,
-                          ),
-                          title: Text(
-                            'Componentes da interface',
-                          ),
+                          leading: Icon(Icons.widgets_outlined),
+                          title: Text('Componentes da interface'),
                           subtitle: Text(
                             'Visualizar os componentes reutilizáveis '
-                          'da aplicação.',
+                            'da aplicação.',
                           ),
-                          trailing: Icon(
-                            Icons.chevron_right,
-                          ),
+                          trailing: Icon(Icons.chevron_right),
                         ),
                       ),
                     ],
@@ -200,16 +169,14 @@ class _DashboardHeader extends StatelessWidget {
       children: [
         Text(
           'Olá, professor',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(context).textTheme.headlineMedium
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         Text(
           'Gerencie suas turmas, provas e correções.',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
+          style: Theme.of(context).textTheme.bodyLarge
+              ?.copyWith(color: colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -239,26 +206,20 @@ class _DashboardCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            size: 28,
-            color: colorScheme.primary,
-          ),
+          Icon(icon, size: 28, color: colorScheme.primary),
           const Spacer(),
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           Text(
             description,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -291,17 +252,15 @@ class _CorrectionFlowCard extends StatelessWidget {
               children: [
                 Text(
                   'Corrigir uma prova',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Leia o QR Code, selecione o gabarito e '
-                'inicie a leitura das folhas de resposta.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                  'inicie a leitura das folhas de resposta.',
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -312,10 +271,7 @@ class _CorrectionFlowCard extends StatelessWidget {
           AppButton(
             label: 'Iniciar',
             onPressed: () {
-              Navigator.pushNamed(
-                context,
-                AppRoutes.correction,
-              );
+              Navigator.pushNamed(context, AppRoutes.correction);
             },
           ),
         ],
