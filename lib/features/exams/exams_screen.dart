@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'exam_form_screen.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/widgets/app_card.dart';
 
@@ -34,13 +34,13 @@ class ExamsScreen extends StatelessWidget {
   }
 
   void _openCreateExamPlaceholder(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const _CreateExamPlaceholder(),
-      ),
-    );
-  }
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ExamFormScreen(),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
