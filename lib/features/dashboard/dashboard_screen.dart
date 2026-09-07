@@ -16,6 +16,15 @@ class DashboardScreen extends StatelessWidget {
           'Início',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Configurações',
+            onPressed: () {
+              Navigator.pushNamed(context, AppRoutes.config);
+            },
+          ),
+        ],
       ),
 
       body: SafeArea(
