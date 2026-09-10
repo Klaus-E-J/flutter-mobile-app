@@ -2,23 +2,15 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_dialog.dart';
 
-// Paleta neutra local, alinhada ao Figma (fundo cinza claro, cards
-// brancos, texto quase preto, azul só para ação principal). Escopada
-// a esta tela para não alterar o tema compartilhado (app_theme.dart).
-class _ConfigColors {
-  static const background = Color(0xFFF5F6F8);
-  static const cardBackground = Colors.white;
-  static const cardBorder = Color(0xFFE5E7EB);
-  static const panelBackground = Color(0xFFF9FAFB);
-  static const textPrimary = Color(0xFF111827);
-  static const textSecondary = Color(0xFF6B7280);
-  static const iconMuted = Color(0xFF9CA3AF);
-  static const primaryBlue = Color(0xFF2563EB);
-  static const primaryBlueSoft = Color(0xFFEFF4FE);
-}
-
+/// Tela de Configurações (FE-14).
+///
+/// Dados mockados — nenhuma persistência real.
+/// Integra visualmente com o restante do aplicativo
+/// usando os componentes e ThemeData centrais.
 class ConfigScreen extends StatefulWidget {
   const ConfigScreen({super.key});
 
@@ -27,8 +19,6 @@ class ConfigScreen extends StatefulWidget {
 }
 
 class _ConfigScreenState extends State<ConfigScreen> {
-  // Dados mockados. Persistência, autenticação e Firebase
-  // serão implementados posteriormente.
   static const _schoolName = 'Escola Municipal Exemplo';
   static const _appVersion = '1.0.0';
 
@@ -37,171 +27,31 @@ class _ConfigScreenState extends State<ConfigScreen> {
   bool _isAccessExpanded = false;
   bool _isAboutExpanded = false;
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _ConfigColors.background,
-      appBar: AppBar(
-        backgroundColor: _ConfigColors.background,
-        foregroundColor: _ConfigColors.textPrimary,
-        elevation: 0,
-        title: const Text(
-          'Configurações',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 700),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildProfileHeader(context),
-
-                  const SizedBox(height: 28),
-
-                  const Text(
-                    'Preferências e dados',
-                    style: TextStyle(
-                      color: _ConfigColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _AccessCodeMenuItem(
-                    isExpanded: _isAccessExpanded,
-                    isCodeRevealed: _isCodeRevealed,
-                    maskedCode: _maskedCode,
-                    accessCode: _accessCode,
-                    onTap: () {
-                      setState(() {
-                        _isAccessExpanded = !_isAccessExpanded;
-                      });
-                    },
-                    onToggleReveal: _handleToggleReveal,
-                    onGenerateNewCode: _handleGenerateNewCode,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  const _SimpleMenuItem(
-                    icon: Icons.sync_outlined,
-                    title: 'Firebase e sincronização',
-                    enabled: false,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  const _SimpleMenuItem(
-                    icon: Icons.file_download_outlined,
-                    title: 'Exportação e dados',
-                    enabled: false,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  const _SimpleMenuItem(
-                    icon: Icons.tune_outlined,
-                    title: 'Preferências',
-                    enabled: false,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _AboutMenuItem(
-                    isExpanded: _isAboutExpanded,
-                    appVersion: _appVersion,
-                    onTap: () {
-                      setState(() {
-                        _isAboutExpanded = !_isAboutExpanded;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            color: _ConfigColors.primaryBlueSoft,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: const Icon(
-            Icons.school_outlined,
-            color: _ConfigColors.primaryBlue,
-          ),
-        ),
-        const SizedBox(width: 16),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _schoolName,
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: _ConfigColors.textPrimary,
-                ),
-              ),
-              SizedBox(height: 2),
-              Text(
-                'Perfil da instituição',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: _ConfigColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  // ─── Lógica ──────────────────────────────────────────────────────────────
 
   String get _maskedCode {
     final prefix = _accessCode.contains('-')
         ? _accessCode.split('-').first
         : _accessCode.substring(0, min(4, _accessCode.length));
-
     return '$prefix-••••';
   }
 
   void _handleToggleReveal() {
     if (_isCodeRevealed) {
-      setState(() {
-        _isCodeRevealed = false;
-      });
+      setState(() => _isCodeRevealed = false);
       return;
     }
 
     AppDialog.show(
       context: context,
       title: 'Visualizar código de acesso',
-      message: 'Este código dá acesso completo aos seus dados. '
+      message:
+          'Este código dá acesso completo aos seus dados. '
           'Deseja exibi-lo na tela?',
       confirmLabel: 'Visualizar',
       cancelLabel: 'Cancelar',
       onConfirm: () {
-        setState(() {
-          _isCodeRevealed = true;
-        });
+        setState(() => _isCodeRevealed = true);
         _showFeedback('Código exibido.', isSuccess: true);
       },
     );
@@ -211,14 +61,12 @@ class _ConfigScreenState extends State<ConfigScreen> {
     AppDialog.show(
       context: context,
       title: 'Gerar novo código',
-      message: 'O código atual deixará de funcionar imediatamente. '
+      message:
+          'O código atual deixará de funcionar imediatamente. '
           'Esta ação não pode ser desfeita. Deseja continuar?',
       confirmLabel: 'Gerar novo código',
       cancelLabel: 'Cancelar',
       onConfirm: () {
-        // Geração e persistência reais (via Firestore) serão implementadas
-        // posteriormente. Por enquanto, simulamos localmente, incluindo
-        // uma chance de falha para representar o estado de erro.
         final random = Random();
         final didSucceed = random.nextDouble() > 0.2;
 
@@ -230,8 +78,10 @@ class _ConfigScreenState extends State<ConfigScreen> {
           return;
         }
 
+        final digits =
+            List.generate(4, (_) => random.nextInt(10)).join();
         setState(() {
-          _accessCode = _generateMockCode();
+          _accessCode = 'PROF-$digits';
           _isCodeRevealed = true;
         });
         _showFeedback('Novo código gerado com sucesso.', isSuccess: true);
@@ -240,248 +90,259 @@ class _ConfigScreenState extends State<ConfigScreen> {
   }
 
   void _showFeedback(String message, {required bool isSuccess}) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor:
-            isSuccess ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
-        content: Row(
-          children: [
-            Icon(
-              isSuccess ? Icons.check_circle_outline : Icons.error_outline,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(color: Colors.white),
+    if (!mounted) return;
+    final colorScheme = Theme.of(context).colorScheme;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor:
+              isSuccess ? colorScheme.primary : colorScheme.error,
+          content: Row(
+            children: [
+              Icon(
+                isSuccess
+                    ? Icons.check_circle_outline
+                    : Icons.error_outline,
+                color: isSuccess
+                    ? colorScheme.onPrimary
+                    : colorScheme.onError,
+                size: 20,
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: isSuccess
+                        ? colorScheme.onPrimary
+                        : colorScheme.onError,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
   }
 
-  String _generateMockCode() {
-    final random = Random();
-    final digits = List.generate(4, (_) => random.nextInt(10)).join();
-    return 'PROF-$digits';
-  }
-}
-
-/// Item de menu no estilo do Figma: card branco arredondado sobre
-/// fundo cinza claro, título à esquerda e seta `>` à direita.
-class _SimpleMenuItem extends StatelessWidget {
-  const _SimpleMenuItem({
-    required this.icon,
-    required this.title,
-    this.enabled = true,
-    this.onTap,
-    this.trailingChild,
-  });
-
-  final IconData icon;
-  final String title;
-  final bool enabled;
-  final VoidCallback? onTap;
-  final Widget? trailingChild;
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: _ConfigColors.cardBackground,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _ConfigColors.cardBorder),
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-          child: Row(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Configurações'),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: enabled
-                    ? _ConfigColors.textSecondary
-                    : _ConfigColors.iconMuted,
+              // Cabeçalho da instituição
+              _buildProfileHeader(),
+
+              const SizedBox(height: 28),
+
+              // Seção de dados
+              _buildSectionLabel('Preferências e dados'),
+              const SizedBox(height: 12),
+
+              // Código de acesso (expansível)
+              _buildAccessCodeItem(),
+              const SizedBox(height: 10),
+
+              // Itens desabilitados (em breve)
+              _buildMenuItem(
+                icon: Icons.sync_outlined,
+                title: 'Firebase e sincronização',
+                enabled: false,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: enabled
-                        ? _ConfigColors.textPrimary
-                        : _ConfigColors.iconMuted,
-                  ),
-                ),
+              const SizedBox(height: 10),
+              _buildMenuItem(
+                icon: Icons.file_download_outlined,
+                title: 'Exportação e dados',
+                enabled: false,
               ),
-              if (!enabled)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _ConfigColors.panelBackground,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: _ConfigColors.cardBorder),
-                    ),
-                    child: const Text(
-                      'Em breve',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _ConfigColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ),
-              trailingChild ??
-                  const Icon(
-                    Icons.chevron_right,
-                    color: _ConfigColors.iconMuted,
-                  ),
+              const SizedBox(height: 10),
+              _buildMenuItem(
+                icon: Icons.tune_outlined,
+                title: 'Preferências',
+                enabled: false,
+              ),
+
+              const SizedBox(height: 28),
+
+              // Seção Sobre
+              _buildSectionLabel('Informações'),
+              const SizedBox(height: 12),
+
+              // Sobre o app (expansível)
+              _buildAboutItem(),
             ],
           ),
         ),
       ),
     );
   }
-}
 
-class _AccessCodeMenuItem extends StatelessWidget {
-  const _AccessCodeMenuItem({
-    required this.isExpanded,
-    required this.isCodeRevealed,
-    required this.maskedCode,
-    required this.accessCode,
-    required this.onTap,
-    required this.onToggleReveal,
-    required this.onGenerateNewCode,
-  });
+  // ─── Widgets auxiliares ───────────────────────────────────────────────────
 
-  final bool isExpanded;
-  final bool isCodeRevealed;
-  final String maskedCode;
-  final String accessCode;
-  final VoidCallback onTap;
-  final VoidCallback onToggleReveal;
-  final VoidCallback onGenerateNewCode;
+  Widget _buildProfileHeader() {
+    final colorScheme = Theme.of(context).colorScheme;
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SimpleMenuItem(
-          icon: Icons.key_outlined,
-          title: 'Acesso e código',
-          onTap: onTap,
-          trailingChild: Icon(
-            isExpanded ? Icons.expand_less : Icons.chevron_right,
-            color: _ConfigColors.iconMuted,
-          ),
-        ),
-        AnimatedCrossFade(
-          firstChild: const SizedBox(width: double.infinity),
-          secondChild: Container(
-            margin: const EdgeInsets.only(top: 8),
-            padding: const EdgeInsets.all(16),
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              color: _ConfigColors.panelBackground,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _ConfigColors.cardBorder),
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: Icon(
+              Icons.school_outlined,
+              color: colorScheme.onPrimaryContainer,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Código de acesso',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _ConfigColors.textSecondary,
-                    fontWeight: FontWeight.w600,
+                Text(
+                  _schoolName,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 16,
+                const SizedBox(height: 2),
+                Text(
+                  'Perfil da instituição',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
-                  decoration: BoxDecoration(
-                    color: _ConfigColors.cardBackground,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _ConfigColors.cardBorder),
-                  ),
-                  child: Text(
-                    isCodeRevealed ? accessCode : maskedCode,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2,
-                      color: _ConfigColors.textPrimary,
-                      fontFeatures: [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onToggleReveal,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _ConfigColors.textPrimary,
-                          side: const BorderSide(
-                            color: _ConfigColors.cardBorder,
-                          ),
-                          backgroundColor: _ConfigColors.cardBackground,
-                        ),
-                        icon: Icon(
-                          isCodeRevealed
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                        ),
-                        label: Text(
-                          isCodeRevealed ? 'Ocultar' : 'Visualizar',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: onGenerateNewCode,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _ConfigColors.primaryBlue,
-                        ),
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Gerar novo'),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
           ),
-          crossFadeState: isExpanded
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String label) {
+    return Text(
+      label,
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String title,
+    bool enabled = true,
+    VoidCallback? onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return AppCard(
+      onTap: enabled ? onTap : null,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 20,
+            color: enabled
+                ? colorScheme.onSurfaceVariant
+                : colorScheme.outlineVariant,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: enabled
+                    ? colorScheme.onSurface
+                    : colorScheme.outlineVariant,
+              ),
+            ),
+          ),
+          if (!enabled)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                'Em breve',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            )
+          else
+            Icon(
+              Icons.chevron_right,
+              color: colorScheme.outlineVariant,
+              size: 20,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccessCodeItem() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppCard(
+          onTap: () => setState(
+            () => _isAccessExpanded = !_isAccessExpanded,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(
+                Icons.key_outlined,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Text(
+                  'Acesso e código',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Icon(
+                _isAccessExpanded
+                    ? Icons.expand_less
+                    : Icons.chevron_right,
+                color: Theme.of(context).colorScheme.outlineVariant,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+
+        AnimatedCrossFade(
+          firstChild: const SizedBox(width: double.infinity, height: 0),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _buildAccessCodePanel(),
+          ),
+          crossFadeState: _isAccessExpanded
               ? CrossFadeState.showSecond
               : CrossFadeState.showFirst,
           duration: const Duration(milliseconds: 200),
@@ -489,77 +350,151 @@ class _AccessCodeMenuItem extends StatelessWidget {
       ],
     );
   }
-}
 
-class _AboutMenuItem extends StatelessWidget {
-  const _AboutMenuItem({
-    required this.isExpanded,
-    required this.appVersion,
-    required this.onTap,
-  });
+  Widget _buildAccessCodePanel() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-  final bool isExpanded;
-  final String appVersion;
-  final VoidCallback onTap;
+    return AppCard(
+      color: colorScheme.surfaceContainerLow,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Código de acesso',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
 
-  @override
-  Widget build(BuildContext context) {
+          // Exibição do código
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: SelectableText(
+              _isCodeRevealed ? _accessCode : _maskedCode,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: _isCodeRevealed ? 'Ocultar' : 'Visualizar',
+                  icon: _isCodeRevealed
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: _handleToggleReveal,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AppButton(
+                  label: 'Gerar novo',
+                  icon: Icons.refresh,
+                  onPressed: _handleGenerateNewCode,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAboutItem() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _SimpleMenuItem(
-          icon: Icons.fact_check_outlined,
-          title: 'Sobre o aplicativo',
-          onTap: onTap,
-          trailingChild: Icon(
-            isExpanded ? Icons.expand_less : Icons.chevron_right,
-            color: _ConfigColors.iconMuted,
+        AppCard(
+          onTap: () =>
+              setState(() => _isAboutExpanded = !_isAboutExpanded),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Text(
+                  'Sobre o aplicativo',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Icon(
+                _isAboutExpanded
+                    ? Icons.expand_less
+                    : Icons.chevron_right,
+                color: Theme.of(context).colorScheme.outlineVariant,
+                size: 20,
+              ),
+            ],
           ),
         ),
+
         AnimatedCrossFade(
-          firstChild: const SizedBox(width: double.infinity),
-          secondChild: Container(
-            margin: const EdgeInsets.only(top: 8),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _ConfigColors.panelBackground,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _ConfigColors.cardBorder),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.info_outline,
-                  color: _ConfigColors.primaryBlue,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
+          firstChild: const SizedBox(width: double.infinity, height: 0),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: AppCard(
+              color:
+                  Theme.of(context).colorScheme.surfaceContainerLow,
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.fact_check_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Avalia Pro',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: _ConfigColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
                       Text(
-                        'Versão $appVersion',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: _ConfigColors.textSecondary,
-                        ),
+                        'Avalia Pro',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        'Versão $_appVersion',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          crossFadeState: isExpanded
+          crossFadeState: _isAboutExpanded
               ? CrossFadeState.showSecond
               : CrossFadeState.showFirst,
           duration: const Duration(milliseconds: 200),

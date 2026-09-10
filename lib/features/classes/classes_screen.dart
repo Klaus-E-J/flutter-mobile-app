@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/widgets/app_card.dart';
 import '../../core/routes/app_routes.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_text_field.dart';
 import 'class_detail_screen.dart';
 
 class ClassesScreen extends StatefulWidget {
@@ -78,16 +80,11 @@ class _ClassesScreenState extends State<ClassesScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _showCreateClassDialog,
-                icon: const Icon(Icons.add),
-                label: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text('Nova turma'),
-                ),
-              ),
+            AppButton(
+              label: 'Nova turma',
+              icon: Icons.add,
+              expanded: true,
+              onPressed: _showCreateClassDialog,
             ),
             const SizedBox(height: 14),
             for (final item in _classes) ...[
@@ -119,27 +116,19 @@ class _ClassesScreenState extends State<ClassesScreen> {
         onDestinationSelected: (index) {
           switch (index) {
             case 0:
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                AppRoutes.dashboard,
-                (route) => false,
-              );
+              Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
               break;
-
             case 1:
-            // Tela atual
+              // Tela atual
               break;
-
             case 2:
               Navigator.pushReplacementNamed(context, AppRoutes.exams);
               break;
-
             case 3:
               Navigator.pushReplacementNamed(context, AppRoutes.correction);
               break;
-
             case 4:
-              // Mais
+              _showMaisModal(context);
               break;
           }
         },
@@ -150,8 +139,8 @@ class _ClassesScreenState extends State<ClassesScreen> {
             label: 'Início',
           ),
           NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined),
-            selectedIcon: Icon(Icons.grid_view),
+            icon: Icon(Icons.groups_outlined),
+            selectedIcon: Icon(Icons.groups),
             label: 'Turmas',
           ),
           NavigationDestination(
@@ -224,36 +213,24 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
+          AppTextField(
+            label: 'Nome da turma',
+            hint: 'Ex.: 9º Ano A',
             controller: _nameController,
-            autofocus: true,
-            textInputAction: TextInputAction.next,
-            decoration: InputDecoration(
-              labelText: 'Nome da turma',
-              hintText: 'Ex.: 9º Ano A',
-              errorText: _nameError,
-            ),
+            errorText: _nameError,
             onChanged: (_) {
-              if (_nameError != null) {
-                setState(() {_nameError = null;});
-              }
+              if (_nameError != null) setState(() => _nameError = null);
             },
           ),
           const SizedBox(height: 16),
-          TextField(
+          AppTextField(
+            label: 'Série',
+            hint: 'Ex.: 9º Ano',
             controller: _gradeController,
-            textInputAction: TextInputAction.done,
-            decoration: InputDecoration(
-              labelText: 'Série',
-              hintText: 'Ex.: 9º Ano',
-              errorText: _gradeError,
-            ),
+            errorText: _gradeError,
             onChanged: (_) {
-              if (_gradeError != null) {
-                setState(() {_gradeError = null;});
-              }
+              if (_gradeError != null) setState(() => _gradeError = null);
             },
-            onSubmitted: (_) => _createClass(),
           ),
         ],
       ),
@@ -278,4 +255,67 @@ class ClassData {
   final String name;
   final String grade;
   final int studentCount;
+}
+
+void _showMaisModal(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Mais opções',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.assignment_outlined),
+                title: const Text('Resultados'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.results);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.bar_chart_outlined),
+                title: const Text('Estatísticas'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.statistics);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.upload_outlined),
+                title: const Text('Exportar'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.export);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings_outlined),
+                title: const Text('Configurações'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.config);
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }

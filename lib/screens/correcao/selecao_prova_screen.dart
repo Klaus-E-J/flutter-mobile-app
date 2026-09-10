@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'models/correcao_models.dart';
 import 'leitura_qr_screen.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_card.dart';
 
 /// Tela inicial do fluxo de correção — Selecionar prova/turma.
 ///
@@ -48,9 +50,10 @@ class _SelecaoProvaScreenState extends State<SelecaoProvaScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Correção')),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
@@ -97,82 +100,119 @@ class _SelecaoProvaScreenState extends State<SelecaoProvaScreen> {
 
             // Card de informações da prova selecionada
             if (_provaSelecionada != null)
-              Container(
-                width: double.infinity,
+              AppCard(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.outlineVariant),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _provaSelecionada!.turma,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _provaSelecionada!.turma,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${_provaSelecionada!.totalAlunos} alunos • '
-                      '${_provaSelecionada!.totalQuestoes} questões',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                      const SizedBox(height: 2),
+                      Text(
+                        '${_provaSelecionada!.totalAlunos} alunos • '
+                        '${_provaSelecionada!.totalQuestoes} questões',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                    if (_provaSelecionada!.provaIndividual) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.shuffle,
-                            size: 14,
-                            color: colorScheme.primary,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Sequência diferente por aluno',
-                            style: theme.textTheme.labelSmall?.copyWith(
+                      if (_provaSelecionada!.provaIndividual) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.shuffle,
+                              size: 14,
                               color: colorScheme.primary,
-                              fontWeight: FontWeight.w500,
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Sequência diferente por aluno',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
 
             const SizedBox(height: 24),
 
             // Botão "Iniciar leitura"
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _provaSelecionada != null ? _iniciarLeitura : null,
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Iniciar leitura'),
-              ),
+            AppButton(
+              label: 'Iniciar leitura',
+              expanded: true,
+              onPressed: _provaSelecionada != null ? _iniciarLeitura : null,
             ),
 
             const SizedBox(height: 16),
 
             // Etapas do fluxo
-            Text(
-              'Etapas: QR Code → Gabarito → Resultado',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildEtapaChip('QR Code', Icons.qr_code, isActive: true),
+                const _EtapaConector(),
+                _buildEtapaChip('Gabarito', Icons.document_scanner_outlined),
+                const _EtapaConector(),
+                _buildEtapaChip('Resultado', Icons.assignment_outlined),
+              ],
             ),
           ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildEtapaChip(
+    String label,
+    IconData icon, {
+    bool isActive = false,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: isActive ? colorScheme.primary : colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: isActive ? colorScheme.primary : colorScheme.onSurfaceVariant,
+            fontWeight: isActive ? FontWeight.w600 : null,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EtapaConector extends StatelessWidget {
+  const _EtapaConector();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Icon(
+        Icons.arrow_forward,
+        size: 14,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
   }

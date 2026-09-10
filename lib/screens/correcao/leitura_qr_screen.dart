@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'models/correcao_models.dart';
 import 'widgets/camera_placeholder.dart';
 import 'leitura_gabarito_screen.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_dialog.dart';
 
 /// Tela de leitura do QR Code da prova (Step 1/2).
 ///
@@ -97,22 +99,14 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
             'Se sair agora, esse progresso será perdido.'
         : 'Se sair agora, a correção será cancelada.';
 
-    final sair = await showDialog<bool>(
+    bool? sair;
+    await AppDialog.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancelar correção?'),
-        content: Text(msg),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Continuar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Sair'),
-          ),
-        ],
-      ),
+      title: 'Cancelar correção?',
+      message: msg,
+      confirmLabel: 'Sair',
+      cancelLabel: 'Continuar',
+      onConfirm: () => sair = true,
     );
 
     if ((sair ?? false) && mounted) {
@@ -138,9 +132,10 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
             onPressed: _confirmarCancelamento,
           ),
         ),
-        body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
@@ -188,20 +183,14 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
               const Spacer(),
 
               // Botão principal
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _status == LeituraStatus.aguardando
-                      ? _capturar
-                      : null,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('Capturar QR Code'),
-                ),
+              AppButton(
+                label: _status == LeituraStatus.processando
+                    ? 'Processando...'
+                    : 'Capturar QR Code',
+                icon: _status == LeituraStatus.processando ? null : Icons.qr_code_scanner,
+                isLoading: _status == LeituraStatus.processando,
+                expanded: true,
+                onPressed: _status == LeituraStatus.aguardando ? _capturar : null,
               ),
 
               const SizedBox(height: 8),
@@ -226,6 +215,7 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 }

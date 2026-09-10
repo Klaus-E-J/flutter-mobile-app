@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'exam_form_screen.dart';
+import '../../core/widgets/app_button.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/widgets/app_card.dart';
+import 'exam_form_screen.dart';
 
 class ExamsScreen extends StatelessWidget {
   const ExamsScreen({super.key});
@@ -28,7 +29,9 @@ class ExamsScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _ExamDetailPlaceholder(exam: exam),
+        builder: (_) => ExamFormScreen(
+          initialName: exam.title,
+        ),
       ),
     );
   }
@@ -69,16 +72,11 @@ class ExamsScreen extends StatelessWidget {
               style: TextStyle(color: colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => _openCreateExamPlaceholder(context),
-                icon: const Icon(Icons.add),
-                label: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text('Nova prova'),
-                ),
-              ),
+            AppButton(
+              label: 'Nova prova',
+              icon: Icons.add,
+              expanded: true,
+              onPressed: () => _openCreateExamPlaceholder(context),
             ),
             const SizedBox(height: 22),
             Text(
@@ -143,7 +141,7 @@ class ExamsScreen extends StatelessWidget {
               Navigator.pushReplacementNamed(context, AppRoutes.correction);
               break;
             case 4:
-              // "Mais" será implementado posteriormente.
+              _showMaisModal(context);
               break;
           }
         },
@@ -154,8 +152,8 @@ class ExamsScreen extends StatelessWidget {
             label: 'Início',
           ),
           NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined),
-            selectedIcon: Icon(Icons.grid_view),
+            icon: Icon(Icons.groups_outlined),
+            selectedIcon: Icon(Icons.groups),
             label: 'Turmas',
           ),
           NavigationDestination(
@@ -190,67 +188,65 @@ class ExamData {
   final int studentCount;
 }
 
-class _ExamDetailPlaceholder extends StatelessWidget {
-  const _ExamDetailPlaceholder({required this.exam});
-
-  final ExamData exam;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Detalhes da prova')),
-      body: SafeArea(
+void _showMaisModal(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      return SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: AppCard(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  exam.title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Mais opções',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '${exam.questionCount} questões • '
-                  '${exam.studentCount} alunos',
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Tela de detalhes será implementada em outra tarefa.',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.assignment_outlined),
+                title: const Text('Resultados'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.results);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.bar_chart_outlined),
+                title: const Text('Estatísticas'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.statistics);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.upload_outlined),
+                title: const Text('Exportar'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.export);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings_outlined),
+                title: const Text('Configurações'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.config);
+                },
+              ),
+            ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CreateExamPlaceholder extends StatelessWidget {
-  const _CreateExamPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Nova prova')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'A tela de Criar/Editar Prova será implementada na FE-06b.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-        ),
-      ),
-    );
-  }
+      );
+    },
+  );
 }

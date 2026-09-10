@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'exam_form_screen.dart';
+import '../../screens/provas/prova_questoes_screen.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_text_field.dart';
@@ -80,7 +80,11 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
   void _openQuestions() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const _QuestionsPlaceholderScreen(),
+        builder: (_) => ProvaQuestoesScreen(
+          provaTitulo: _nameController.text.trim().isEmpty
+              ? 'Prova sem título'
+              : _nameController.text.trim(),
+        ),
       ),
     );
   }
@@ -295,46 +299,4 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-/// Placeholder local para cumprir o fluxo FE-06b -> FE-07 sem alterar
-/// o arquivo central de rotas e sem implementar a tarefa de outro membro.
-class _QuestionsPlaceholderScreen extends StatelessWidget {
-  const _QuestionsPlaceholderScreen();
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Gerenciar questões')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.quiz_outlined,
-                size: 48,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'FE-07 — Questões da prova',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Esta tela é apenas um placeholder. O cadastro, edição e remoção de questões será implementado na FE-07.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

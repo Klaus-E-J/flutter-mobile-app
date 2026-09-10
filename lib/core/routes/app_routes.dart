@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../features/access/access_screen.dart';
 import '../../features/classes/classes_screen.dart';
+import '../../features/config/config_screen.dart';
 import '../../features/correction/correction_screen.dart';
 import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/exams/exams_screen.dart';
 import '../../features/export/export_screen.dart';
 import '../../features/results/results_screen.dart';
 import '../../features/statistics/statistics_screen.dart';
-import '../../screens/config/config_screen.dart';
 
 import '../../features/ui_preview/ui_preview_screen.dart';
 

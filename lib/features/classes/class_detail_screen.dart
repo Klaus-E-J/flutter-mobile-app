@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_text_field.dart';
+import '../classes/importacao_alunos_screen.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   const ClassDetailScreen({
@@ -32,7 +35,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _studentCount = widget.initialStudentCount;
+    // Usar sempre o tamanho real da lista mockada
+    _studentCount = _students.length;
   }
 
   Future<void> _showAddStudentDialog() async {
@@ -51,11 +55,33 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     });
   }
 
-  void _showImportMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Importação será implementada posteriormente.'),
+  Future<void> _abrirImportacao() async {
+    final importou = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ImportacaoAlunosScreen(
+          nomeTurma: widget.className,
+        ),
       ),
+    );
+
+    if (!mounted || importou != true) return;
+
+    // Simula adição dos alunos importados
+    setState(() {
+      _students.addAll([
+        'Adriana Ferreira',
+        'Bruno Henrique',
+        'Camila Souza',
+        'Daniel Ribeiro',
+        'Eduarda Lima',
+      ]);
+      _studentCount = _students.length;
+    });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Alunos importados com sucesso.')),
     );
   }
 
@@ -84,22 +110,20 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _showAddStudentDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Adicionar aluno'),
-              ),
+            AppButton(
+              label: 'Adicionar aluno',
+              icon: Icons.add,
+              variant: AppButtonVariant.secondary,
+              expanded: true,
+              onPressed: _showAddStudentDialog,
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: _showImportMessage,
-                icon: const Icon(Icons.upload_file_outlined),
-                label: const Text('Importar lista'),
-              ),
+            AppButton(
+              label: 'Importar lista',
+              icon: Icons.upload_file_outlined,
+              variant: AppButtonVariant.text,
+              expanded: true,
+              onPressed: _abrirImportacao,
             ),
             const SizedBox(height: 8),
             for (final student in _students) ...[
@@ -170,23 +194,14 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Adicionar aluno'),
-      content: TextField(
+      content: AppTextField(
+        label: 'Nome',
+        hint: 'Nome do aluno',
         controller: _controller,
-        autofocus: true,
-        textInputAction: TextInputAction.done,
-        decoration: InputDecoration(
-          labelText: 'Nome',
-          hintText: 'Nome do aluno',
-          errorText: _errorText,
-        ),
+        errorText: _errorText,
         onChanged: (_) {
-          if (_errorText != null) {
-            setState(() {
-              _errorText = null;
-            });
-          }
+          if (_errorText != null) setState(() => _errorText = null);
         },
-        onSubmitted: (_) => _addStudent(),
       ),
       actions: [
         TextButton(

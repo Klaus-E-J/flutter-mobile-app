@@ -4,6 +4,8 @@ import 'models/correcao_models.dart';
 import 'widgets/camera_placeholder.dart';
 import 'leitura_qr_screen.dart';
 import 'resultado_correcao_screen.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_dialog.dart';
 
 /// Nomes mockados de alunos para exibição durante a captura.
 const _nomesMock = [
@@ -176,22 +178,14 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
             'Se sair agora, esse progresso será perdido.'
         : 'Se sair agora, a correção será cancelada.';
 
-    final sair = await showDialog<bool>(
+    bool? sair;
+    await AppDialog.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancelar captura?'),
-        content: Text(msg),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Continuar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Sair'),
-          ),
-        ],
-      ),
+      title: 'Cancelar captura?',
+      message: msg,
+      confirmLabel: 'Sair',
+      cancelLabel: 'Continuar',
+      onConfirm: () => sair = true,
     );
 
     if ((sair ?? false) && mounted) {
@@ -226,9 +220,10 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
               ),
           ],
         ),
-        body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
@@ -312,20 +307,16 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
               const Spacer(),
 
               // Botão principal
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _status == LeituraStatus.aguardando
-                      ? _capturar
-                      : null,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('Capturar prova'),
-                ),
+              AppButton(
+                label: _status == LeituraStatus.processando
+                    ? 'Processando...'
+                    : 'Capturar prova',
+                icon: _status == LeituraStatus.processando
+                    ? null
+                    : Icons.document_scanner_outlined,
+                isLoading: _status == LeituraStatus.processando,
+                expanded: true,
+                onPressed: _status == LeituraStatus.aguardando ? _capturar : null,
               ),
 
               const SizedBox(height: 8),
@@ -350,6 +341,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 }
