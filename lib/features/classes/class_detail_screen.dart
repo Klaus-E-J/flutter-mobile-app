@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/widgets/app_card.dart';
+import '../../screens/import/import_students_sheet.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   const ClassDetailScreen({
@@ -51,10 +52,23 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     });
   }
 
-  void _showImportMessage() {
+  Future<void> _handleImport() async {
+    final importedNames = await showImportStudentsSheet(context);
+
+    if (!mounted || importedNames == null || importedNames.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _students.addAll(importedNames);
+      _studentCount += importedNames.length;
+    });
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Importação será implementada posteriormente.'),
+      SnackBar(
+        content: Text(
+          '${importedNames.length} alunos importados com sucesso.',
+        ),
       ),
     );
   }
@@ -96,7 +110,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             SizedBox(
               width: double.infinity,
               child: TextButton.icon(
-                onPressed: _showImportMessage,
+                onPressed: _handleImport,
                 icon: const Icon(Icons.upload_file_outlined),
                 label: const Text('Importar lista'),
               ),
