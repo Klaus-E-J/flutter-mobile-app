@@ -1,189 +1,232 @@
 import 'package:flutter/material.dart';
 
-import '../../core/routes/app_routes.dart';
-import '../../core/widgets/app_card.dart';
-import '../../core/widgets/app_empty_state.dart';
-import '../../screens/correcao/models/correcao_models.dart';
-import '../../screens/correcao/resultado_correcao_screen.dart';
+/// Dados prontos de uma questão.
+/// A FE-10 apenas exibe esses valores.
+class QuestionResultData {
+  const QuestionResultData({
+    required this.number,
+    required this.marked,
+    required this.correct,
+    required this.isCorrect,
+  });
 
-/// Central de Resultados (FE-10).
+  final int number;
+  final String marked;
+  final String correct;
+  final bool isCorrect;
+}
+
+/// FE-10 — Resultado individual do aluno.
 ///
-/// Lista as correções realizadas (dados mockados).
-/// Cada item abre o detalhamento por aluno.
-/// Oferece atalhos para Estatísticas e Exportação.
+/// Somente Front-End.
+/// Não calcula nota e não realiza correção.
 class ResultsScreen extends StatelessWidget {
-  const ResultsScreen({super.key});
+  const ResultsScreen({
+    super.key,
+    this.studentName = 'Ana Silva',
+    this.className = '9º Ano A',
+    this.examTitle = 'Avaliação Matemática',
+    this.score = '8,5 / 10',
+    this.hits = 17,
+    this.errors = 3,
+    this.totalQuestions = 20,
+    this.questions = const <QuestionResultData>[],
+  });
 
-  static final List<_ResultadoResumo> _resultados = [
-    _ResultadoResumo(
-      prova: ProvaCorrecao(
-        id: '1',
-        titulo: 'Prova 1 — Matemática',
-        turma: '9º Ano A',
-        disciplina: 'Matemática',
-        totalQuestoes: 10,
-        totalAlunos: 28,
-        dataCriacao: DateTime(2026, 8, 20),
-      ),
-      resultados: gerarResultadosMock(20, 10),
-      totalErros: 1,
-    ),
-    _ResultadoResumo(
-      prova: ProvaCorrecao(
-        id: '2',
-        titulo: 'Português — Unidade 2',
-        turma: '8º Ano B',
-        disciplina: 'Português',
-        totalQuestoes: 15,
-        totalAlunos: 24,
-        dataCriacao: DateTime(2026, 8, 25),
-      ),
-      resultados: gerarResultadosMock(18, 15),
-      totalErros: 0,
-    ),
-    _ResultadoResumo(
-      prova: ProvaCorrecao(
-        id: '3',
-        titulo: 'Ciências — Bimestre 1',
-        turma: 'Ensino Médio — 1A',
-        disciplina: 'Ciências',
-        totalQuestoes: 25,
-        totalAlunos: 31,
-        dataCriacao: DateTime(2026, 8, 30),
-      ),
-      resultados: gerarResultadosMock(15, 25),
-      totalErros: 2,
-    ),
+  final String studentName;
+  final String className;
+  final String examTitle;
+
+  final String score;
+  final int hits;
+  final int errors;
+  final int totalQuestions;
+
+  final List<QuestionResultData> questions;
+
+  static const List<QuestionResultData> _defaultQuestions = [
+    QuestionResultData(number: 1, marked: 'B', correct: 'B', isCorrect: true),
+    QuestionResultData(number: 2, marked: 'C', correct: 'B', isCorrect: false),
+    QuestionResultData(number: 3, marked: 'B', correct: 'B', isCorrect: true),
+    QuestionResultData(number: 4, marked: 'B', correct: 'B', isCorrect: true),
+    QuestionResultData(number: 5, marked: 'B', correct: 'B', isCorrect: true),
+    QuestionResultData(number: 6, marked: 'D', correct: 'D', isCorrect: true),
+    QuestionResultData(number: 7, marked: 'A', correct: 'A', isCorrect: true),
+    QuestionResultData(number: 8, marked: 'C', correct: 'C', isCorrect: true),
+    QuestionResultData(number: 9, marked: 'E', correct: 'E', isCorrect: true),
+    QuestionResultData(number: 10, marked: 'A', correct: 'A', isCorrect: true),
+    QuestionResultData(number: 11, marked: 'B', correct: 'B', isCorrect: true),
+    QuestionResultData(number: 12, marked: 'A', correct: 'C', isCorrect: false),
+    QuestionResultData(number: 13, marked: 'D', correct: 'D', isCorrect: true),
+    QuestionResultData(number: 14, marked: 'E', correct: 'E', isCorrect: true),
+    QuestionResultData(number: 15, marked: 'C', correct: 'C', isCorrect: true),
+    QuestionResultData(number: 16, marked: 'B', correct: 'B', isCorrect: true),
+    QuestionResultData(number: 17, marked: 'A', correct: 'A', isCorrect: true),
+    QuestionResultData(number: 18, marked: 'D', correct: 'B', isCorrect: false),
+    QuestionResultData(number: 19, marked: 'C', correct: 'C', isCorrect: true),
+    QuestionResultData(number: 20, marked: 'E', correct: 'E', isCorrect: true),
   ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final displayedQuestions =
+        questions.isEmpty ? _defaultQuestions : questions;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Resultados'),
+        title: const Text(
+          'Resultados',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       body: SafeArea(
-        child: _resultados.isEmpty
-            ? AppEmptyState(
-                icon: Icons.assignment_outlined,
-                title: 'Nenhum resultado ainda',
-                description:
-                    'Os resultados aparecerão aqui após você concluir '
-                    'uma correção.',
-                action: FilledButton.icon(
-                  onPressed: () =>
-                      Navigator.pushNamed(context, AppRoutes.correction),
-                  icon: const Icon(Icons.adjust_outlined),
-                  label: const Text('Iniciar correção'),
-                ),
-              )
-            : ListView(
-                padding: const EdgeInsets.all(20),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          children: [
+            Text(
+              'Correção individual',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            Text(
+              studentName,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            Text(
+              '$className • $examTitle',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colorScheme.outlineVariant),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Cabeçalho
                   Text(
-                    'Correções realizadas',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+                    score,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
+
                   Text(
-                    '${_resultados.length} prova(s) corrigida(s)',
-                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    '$hits acertos de $totalQuestions questões',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
 
                   const SizedBox(height: 16),
 
-                  // Atalhos rápidos
                   Row(
                     children: [
                       Expanded(
-                        child: _AtalhoCard(
-                          icon: Icons.bar_chart_outlined,
-                          label: 'Estatísticas',
-                          onTap: () => Navigator.pushNamed(
-                            context,
-                            AppRoutes.statistics,
-                          ),
+                        child: _ResumoItem(
+                          titulo: 'Acertos',
+                          valor: '$hits',
+                          icon: Icons.check_circle_outline,
+                          color: Colors.green.shade700,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: _AtalhoCard(
-                          icon: Icons.upload_outlined,
-                          label: 'Exportar',
-                          onTap: () => Navigator.pushNamed(
-                            context,
-                            AppRoutes.export,
-                          ),
+                        child: _ResumoItem(
+                          titulo: 'Erros',
+                          valor: '$errors',
+                          icon: Icons.cancel_outlined,
+                          color: colorScheme.error,
                         ),
                       ),
                     ],
                   ),
-
-                  const SizedBox(height: 24),
-
-                  Text(
-                    'Histórico',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Lista de resultados
-                  for (final item in _resultados) ...[
-                    _ResultadoCard(
-                      item: item,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ResultadoCorrecaoScreen(
-                            prova: item.prova,
-                            resultados: item.resultados,
-                            totalErros: item.totalErros,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
                 ],
               ),
+            ),
+
+            const SizedBox(height: 24),
+
+            Text(
+              'Questões',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            for (final question in displayedQuestions) ...[
+              _QuestionCard(question: question),
+              const SizedBox(height: 8),
+            ],
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Card de atalho rápido (Estatísticas / Exportar).
-class _AtalhoCard extends StatelessWidget {
-  const _AtalhoCard({
+class _ResumoItem extends StatelessWidget {
+  const _ResumoItem({
+    required this.titulo,
+    required this.valor,
     required this.icon,
-    required this.label,
-    required this.onTap,
+    required this.color,
   });
 
+  final String titulo;
+  final String valor;
   final IconData icon;
-  final String label;
-  final VoidCallback onTap;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return AppCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(14),
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: colorScheme.primary),
+          Icon(icon, color: color, size: 20),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                valor,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                titulo,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -191,94 +234,53 @@ class _AtalhoCard extends StatelessWidget {
   }
 }
 
-/// Card de um resultado na lista histórica.
-class _ResultadoCard extends StatelessWidget {
-  const _ResultadoCard({required this.item, required this.onTap});
+class _QuestionCard extends StatelessWidget {
+  const _QuestionCard({required this.question});
 
-  final _ResultadoResumo item;
-  final VoidCallback onTap;
+  final QuestionResultData question;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final color =
+        question.isCorrect ? Colors.green.shade700 : colorScheme.error;
 
-    final media = item.resultados.isEmpty
-        ? 0.0
-        : item.resultados.fold<double>(
-                0, (sum, r) => sum + r.percentual) /
-            item.resultados.length;
-
-    final corMedia =
-        media >= 60 ? colorScheme.primary : colorScheme.error;
-
-    return AppCard(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
       child: Row(
         children: [
+          Icon(
+            question.isCorrect
+                ? Icons.check_circle_outline
+                : Icons.cancel_outlined,
+            size: 18,
+            color: color,
+          ),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.prova.titulo,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${item.prova.turma} · ${item.prova.disciplina}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${item.resultados.length} aluno(s) · '
-                  '${item.prova.totalQuestoes} questões',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+            child: Text(
+              'Questão ${question.number}',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${media.toStringAsFixed(0)}%',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: corMedia,
-                ),
-              ),
-              Text(
-                'média',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+          Text(
+            'Marcada: ${question.marked} • Correta: ${question.correct}',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-          const SizedBox(width: 4),
-          Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
         ],
       ),
     );
   }
-}
-
-/// Modelo local para o resumo de um resultado na lista.
-class _ResultadoResumo {
-  const _ResultadoResumo({
-    required this.prova,
-    required this.resultados,
-    required this.totalErros,
-  });
-
-  final ProvaCorrecao prova;
-  final List<ResultadoAluno> resultados;
-  final int totalErros;
 }
