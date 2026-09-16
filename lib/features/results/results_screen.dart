@@ -4,13 +4,11 @@ import '../../core/routes/app_routes.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_empty_state.dart';
 import '../../screens/correcao/models/correcao_models.dart';
-import '../../screens/correcao/resultado_correcao_screen.dart';
-
+import 'exam_results_screen.dart';
 /// Central de Resultados (FE-10).
 ///
-/// Lista as correções realizadas (dados mockados).
-/// Cada item abre o detalhamento por aluno.
-/// Oferece atalhos para Estatísticas e Exportação.
+/// Lista as correções realizadas com dados mockados.
+/// Ao selecionar uma prova, abre a lista de alunos daquela prova.
 class ResultsScreen extends StatelessWidget {
   const ResultsScreen({super.key});
 
@@ -83,7 +81,6 @@ class ResultsScreen extends StatelessWidget {
             : ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  // Cabeçalho
                   Text(
                     'Correções realizadas',
                     style: theme.textTheme.headlineSmall?.copyWith(
@@ -93,12 +90,13 @@ class ResultsScreen extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${_resultados.length} prova(s) corrigida(s)',
-                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
 
                   const SizedBox(height: 16),
 
-                  // Atalhos rápidos
                   Row(
                     children: [
                       Expanded(
@@ -133,22 +131,24 @@ class ResultsScreen extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   const SizedBox(height: 12),
 
-                  // Lista de resultados
                   for (final item in _resultados) ...[
                     _ResultadoCard(
                       item: item,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ResultadoCorrecaoScreen(
-                            prova: item.prova,
-                            resultados: item.resultados,
-                            totalErros: item.totalErros,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => ExamResultsScreen(
+                              prova: item.prova,
+                              resultados: item.resultados,
+                              totalErros: item.totalErros,
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -159,7 +159,6 @@ class ResultsScreen extends StatelessWidget {
   }
 }
 
-/// Card de atalho rápido (Estatísticas / Exportar).
 class _AtalhoCard extends StatelessWidget {
   const _AtalhoCard({
     required this.icon,
@@ -174,16 +173,23 @@ class _AtalhoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
     return AppCard(
       onTap: onTap,
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: colorScheme.primary),
+          Icon(
+            icon,
+            size: 20,
+            color: colorScheme.primary,
+          ),
           const SizedBox(width: 8),
           Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -191,9 +197,11 @@ class _AtalhoCard extends StatelessWidget {
   }
 }
 
-/// Card de um resultado na lista histórica.
 class _ResultadoCard extends StatelessWidget {
-  const _ResultadoCard({required this.item, required this.onTap});
+  const _ResultadoCard({
+    required this.item,
+    required this.onTap,
+  });
 
   final _ResultadoResumo item;
   final VoidCallback onTap;
@@ -206,15 +214,20 @@ class _ResultadoCard extends StatelessWidget {
     final media = item.resultados.isEmpty
         ? 0.0
         : item.resultados.fold<double>(
-                0, (sum, r) => sum + r.percentual) /
-            item.resultados.length;
+                0,
+                (sum, resultado) => sum + resultado.percentual,
+              ) /
+              item.resultados.length;
 
     final corMedia =
         media >= 60 ? colorScheme.primary : colorScheme.error;
 
     return AppCard(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 14,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -223,7 +236,9 @@ class _ResultadoCard extends StatelessWidget {
               children: [
                 Text(
                   item.prova.titulo,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -243,7 +258,9 @@ class _ResultadoCard extends StatelessWidget {
               ],
             ),
           ),
+
           const SizedBox(width: 12),
+
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -262,15 +279,19 @@ class _ResultadoCard extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(width: 4),
-          Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+
+          Icon(
+            Icons.chevron_right,
+            color: colorScheme.onSurfaceVariant,
+          ),
         ],
       ),
     );
   }
 }
 
-/// Modelo local para o resumo de um resultado na lista.
 class _ResultadoResumo {
   const _ResultadoResumo({
     required this.prova,
