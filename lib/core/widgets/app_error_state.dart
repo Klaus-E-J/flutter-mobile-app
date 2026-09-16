@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_button.dart';
+
 class AppErrorState extends StatelessWidget {
   const AppErrorState({
     super.key,
@@ -14,13 +16,18 @@ class AppErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48),
+            Icon(
+              Icons.error_outline,
+              size: 48,
+              color: colorScheme.error,
+            ),
             const SizedBox(height: 16),
             Text(
               title,
@@ -32,14 +39,18 @@ class AppErrorState extends StatelessWidget {
               Text(
                 description!,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
             if (onRetry != null) ...[
               const SizedBox(height: 20),
-              TextButton(
+              AppButton(
+                label: 'Tentar novamente',
+                icon: Icons.refresh,
+                variant: AppButtonVariant.secondary,
                 onPressed: onRetry,
-                child: const Text('Tentar novamente'),
               ),
             ],
           ],

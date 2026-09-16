@@ -59,47 +59,29 @@ class _StatisticsScreenState extends State<StatisticsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Estatísticas',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Estatísticas'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(100),
           child: Column(
             children: [
-              // Seletor de turma
+              // Seletor de turma com DropdownButtonFormField padrão do Material 3
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 4,
+                child: DropdownButtonFormField<String>(
+                  value: _selectedClass,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.groups_outlined),
                   ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: theme.colorScheme.outlineVariant,
-                    ),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedClass,
-                      isExpanded: true,
-                      icon: const Icon(Icons.arrow_drop_down),
-                      hint: const Text('Selecione a turma'),
-                      items: _classes.map((className) {
-                        return DropdownMenuItem(
-                          value: className,
-                          child: Text('Turma: $className'),
-                        );
-                      }).toList(),
-                      onChanged: _onClassChanged,
-                    ),
-                  ),
+                  hint: const Text('Selecione a turma'),
+                  items: _classes.map((className) {
+                    return DropdownMenuItem(
+                      value: className,
+                      child: Text(className),
+                    );
+                  }).toList(),
+                  onChanged: _onClassChanged,
                 ),
               ),
               const SizedBox(height: 8),
@@ -125,7 +107,36 @@ class _StatisticsScreenState extends State<StatisticsScreen>
     }
 
     if (_selectedClass == null) {
-      return const Center(child: Text('Nenhuma turma disponível'));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.bar_chart_outlined,
+                size: 48,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Nenhuma turma disponível',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Cadastre turmas e realize correções para '
+                'ver as estatísticas aqui.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return SafeArea(

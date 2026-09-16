@@ -99,33 +99,24 @@ class _ClassStatsViewState extends State<ClassStatsView> {
         const SizedBox(height: 16),
 
         // Dropdown de prova
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant,
-            ),
+        DropdownButtonFormField<String>(
+          value: _selectedExam,
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.description_outlined),
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedExam,
-              isExpanded: true,
-              icon: const Icon(Icons.arrow_drop_down),
-              items: _exams.map((exam) {
-                return DropdownMenuItem(
-                  value: exam,
-                  child: Text('Prova: $exam'),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null && value != _selectedExam) {
-                  setState(() => _selectedExam = value);
-                  _loadStats(value);
-                }
-              },
-            ),
-          ),
+          hint: const Text('Selecione a prova'),
+          items: _exams.map((exam) {
+            return DropdownMenuItem(
+              value: exam,
+              child: Text(exam),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null && value != _selectedExam) {
+              setState(() => _selectedExam = value);
+              _loadStats(value);
+            }
+          },
         ),
 
         const SizedBox(height: 16),

@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../core/routes/app_routes.dart';
@@ -12,10 +11,7 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Início',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Início'),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -55,6 +51,7 @@ class DashboardScreen extends StatelessWidget {
                   child: _StatisticCard(
                     value: '12',
                     label: 'Provas',
+                    icon: Icons.description_outlined,
                   ),
                 ),
                 SizedBox(width: 10),
@@ -62,6 +59,7 @@ class DashboardScreen extends StatelessWidget {
                   child: _StatisticCard(
                     value: '4',
                     label: 'Turmas',
+                    icon: Icons.groups_outlined,
                   ),
                 ),
                 SizedBox(width: 10),
@@ -69,6 +67,7 @@ class DashboardScreen extends StatelessWidget {
                   child: _StatisticCard(
                     value: '8',
                     label: 'Pendentes',
+                    icon: Icons.pending_outlined,
                   ),
                 ),
               ],
@@ -97,6 +96,7 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 12),
 
             _QuickAccessCard(
+              icon: Icons.groups_outlined,
               title: 'Turmas',
               description: 'Gerencie alunos e turmas',
               onTap: () {
@@ -107,6 +107,7 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 10),
 
             _QuickAccessCard(
+              icon: Icons.description_outlined,
               title: 'Provas',
               description: 'Crie e configure avaliações',
               onTap: () {
@@ -117,6 +118,7 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 10),
 
             _QuickAccessCard(
+              icon: Icons.adjust_outlined,
               title: 'Corrigir',
               description: 'Leia QR, gabarito e provas',
               onTap: () {
@@ -127,6 +129,7 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 10),
 
             _QuickAccessCard(
+              icon: Icons.assignment_outlined,
               title: 'Resultados',
               description: 'Consultar provas corrigidas',
               onTap: () {
@@ -137,6 +140,7 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 10),
 
             _QuickAccessCard(
+              icon: Icons.bar_chart_outlined,
               title: 'Estatísticas',
               description: 'Analisar desempenho',
               onTap: () {
@@ -147,13 +151,13 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 10),
 
             _QuickAccessCard(
-                title: 'Exportar',
-                description: 'Exportar resultados',
-                onTap: () {
-                  Navigator.pushNamed(context, AppRoutes.export);
-                },
+              icon: Icons.upload_outlined,
+              title: 'Exportar',
+              description: 'Exportar resultados',
+              onTap: () {
+                Navigator.pushNamed(context, AppRoutes.export);
+              },
             ),
-
           ],
         ),
       ),
@@ -163,32 +167,23 @@ class DashboardScreen extends StatelessWidget {
         onDestinationSelected: (index) {
           switch (index) {
             case 0:
-            // Tela atual
+              // Tela atual
               break;
 
             case 1:
-              Navigator.pushNamed(
-                context,
-                AppRoutes.classes,
-              );
+              Navigator.pushNamed(context, AppRoutes.classes);
               break;
 
             case 2:
-              Navigator.pushNamed(
-                context,
-                AppRoutes.exams,
-              );
+              Navigator.pushNamed(context, AppRoutes.exams);
               break;
 
             case 3:
-              Navigator.pushNamed(
-                context,
-                AppRoutes.correction,
-              );
+              Navigator.pushNamed(context, AppRoutes.correction);
               break;
 
             case 4:
-            // Mais
+              _showMaisModal(context);
               break;
           }
         },
@@ -199,8 +194,8 @@ class DashboardScreen extends StatelessWidget {
             label: 'Início',
           ),
           NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined),
-            selectedIcon: Icon(Icons.groups_outlined),
+            icon: Icon(Icons.groups_outlined),
+            selectedIcon: Icon(Icons.groups),
             label: 'Turmas',
           ),
           NavigationDestination(
@@ -223,27 +218,161 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
+/// Exibe um modal bottom sheet com as ações secundárias do app.
+void _showMaisModal(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Mais opções',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _ModalActionTile(
+                icon: Icons.assignment_outlined,
+                label: 'Resultados',
+                description: 'Consultar correções realizadas',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.results);
+                },
+              ),
+              _ModalActionTile(
+                icon: Icons.bar_chart_outlined,
+                label: 'Estatísticas',
+                description: 'Analisar desempenho das turmas',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.statistics);
+                },
+              ),
+              _ModalActionTile(
+                icon: Icons.upload_outlined,
+                label: 'Exportar',
+                description: 'Exportar resultados e dados',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.export);
+                },
+              ),
+              _ModalActionTile(
+                icon: Icons.settings_outlined,
+                label: 'Configurações',
+                description: 'Código de acesso e preferências',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, AppRoutes.config);
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _ModalActionTile extends StatelessWidget {
+  const _ModalActionTile({
+    required this.icon,
+    required this.label,
+    required this.description,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String description;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 20, color: colorScheme.primary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    description,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: colorScheme.outlineVariant,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _StatisticCard extends StatelessWidget {
   const _StatisticCard({
     required this.value,
     required this.label,
+    required this.icon,
   });
 
   final String value;
   final String label;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return AppCard(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Icon(icon, size: 18, color: colorScheme.primary),
+          const SizedBox(height: 6),
           Text(
             value,
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall,
@@ -256,36 +385,52 @@ class _StatisticCard extends StatelessWidget {
 
 class _QuickAccessCard extends StatelessWidget {
   const _QuickAccessCard({
+    required this.icon,
     required this.title,
     required this.description,
     required this.onTap,
   });
 
+  final IconData icon;
   final String title;
   final String description;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return AppCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(
         horizontal: 14,
         vertical: 12,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
+          Icon(icon, size: 20, color: colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 3),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodySmall,
+          Icon(
+            Icons.chevron_right,
+            size: 18,
+            color: colorScheme.outlineVariant,
           ),
         ],
       ),

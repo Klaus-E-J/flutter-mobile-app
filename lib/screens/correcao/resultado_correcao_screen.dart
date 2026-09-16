@@ -96,14 +96,44 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
           ],
         ),
 
-        // Botão de concluir
+        // Botões de ação pós-correção
         bottomNavigationBar: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: FilledButton.icon(
-              onPressed: () => _concluir(context),
-              icon: const Icon(Icons.check),
-              label: const Text('Concluir Correção'),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () =>
+                            Navigator.of(context).pushNamed('/statistics'),
+                        icon: const Icon(Icons.bar_chart_outlined),
+                        label: const Text('Estatísticas'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () =>
+                            Navigator.of(context).pushNamed('/export'),
+                        icon: const Icon(Icons.upload_outlined),
+                        label: const Text('Exportar'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _concluir(context),
+                    icon: const Icon(Icons.check),
+                    label: const Text('Concluir Correção'),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -112,8 +142,10 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
   }
 
   void _concluir(BuildContext context) {
-    // Retorna até a tela que chamou o fluxo de correção
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // Retorna até o Dashboard, descartando todo o fluxo de correção.
+    Navigator.of(context).popUntil(
+      (route) => route.settings.name == '/dashboard' || route.isFirst,
+    );
   }
 
   Widget _buildResumo(ThemeData theme) {

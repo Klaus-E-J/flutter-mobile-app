@@ -23,37 +23,47 @@ class AppButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Widget button;
+    final effectiveOnPressed = isLoading ? null : onPressed;
 
     switch (variant) {
       case AppButtonVariant.primary:
-        button = FilledButton.icon(
-          onPressed: isLoading ? null : onPressed,
-          icon: _buildIcon(),
-          label: _buildLabel(),
-        );
-        break;
+        button = icon != null
+            ? FilledButton.icon(
+                onPressed: effectiveOnPressed,
+                icon: _buildIcon(),
+                label: Text(label),
+              )
+            : FilledButton(
+                onPressed: effectiveOnPressed,
+                child: _buildLabel(),
+              );
 
       case AppButtonVariant.secondary:
-        button = OutlinedButton.icon(
-          onPressed: isLoading ? null : onPressed,
-          icon: _buildIcon(),
-          label: _buildLabel(),
-        );
-        break;
+        button = icon != null
+            ? OutlinedButton.icon(
+                onPressed: effectiveOnPressed,
+                icon: _buildIcon(),
+                label: Text(label),
+              )
+            : OutlinedButton(
+                onPressed: effectiveOnPressed,
+                child: _buildLabel(),
+              );
 
       case AppButtonVariant.text:
-        button = TextButton.icon(
-          onPressed: isLoading ? null : onPressed,
-          icon: _buildIcon(),
-          label: _buildLabel(),
-        );
-        break;
+        button = icon != null
+            ? TextButton.icon(
+                onPressed: effectiveOnPressed,
+                icon: _buildIcon(),
+                label: Text(label),
+              )
+            : TextButton(
+                onPressed: effectiveOnPressed,
+                child: _buildLabel(),
+              );
     }
 
-    if (!expanded) {
-      return button;
-    }
-
+    if (!expanded) return button;
     return SizedBox(width: double.infinity, child: button);
   }
 
@@ -65,15 +75,24 @@ class AppButton extends StatelessWidget {
         child: CircularProgressIndicator(strokeWidth: 2),
       );
     }
-
-    if (icon != null) {
-      return Icon(icon);
-    }
-
-    return const SizedBox.shrink();
+    return Icon(icon);
   }
 
   Widget _buildLabel() {
+    if (isLoading) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 8),
+          Text(label),
+        ],
+      );
+    }
     return Text(label);
   }
 }
