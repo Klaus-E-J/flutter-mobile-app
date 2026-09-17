@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../core/routes/app_routes.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_dialog.dart';
@@ -164,7 +165,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
               _buildMenuItem(
                 icon: Icons.file_download_outlined,
                 title: 'Exportação e dados',
-                enabled: false,
+                onTap: () {
+                  Navigator.pushNamed(context, AppRoutes.export);
+                },
               ),
               const SizedBox(height: 10),
               _buildMenuItem(
