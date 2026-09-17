@@ -25,13 +25,16 @@ class _ExportScreenState extends State<ExportScreen> {
   // Seleção de conteúdo
   bool _incluirResultados = true;
   bool _incluirEstatisticas = false;
-  bool _incluirListaAlunos = false;
+  bool _incluirGabarito = false;
+
+  // Formato do arquivo
+  _ExportFormat _formato = _ExportFormat.excel;
 
   _ExportStatus _status = _ExportStatus.idle;
   String? _errorMessage;
 
   bool get _hasSelection =>
-      _incluirResultados || _incluirEstatisticas || _incluirListaAlunos;
+      _incluirResultados || _incluirEstatisticas || _incluirGabarito;
 
   /// Inicia o fluxo de exportação mockado.
   Future<void> _iniciarExportacao() async {
@@ -117,14 +120,14 @@ class _ExportScreenState extends State<ExportScreen> {
       padding: const EdgeInsets.all(20),
       children: [
         Text(
-          'Exportar dados',
+          'Exportar',
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          'Selecione o que deseja incluir no arquivo exportado.',
+          'Selecione o que deseja gerar.',
           style: TextStyle(color: colorScheme.onSurfaceVariant),
         ),
 
@@ -141,7 +144,7 @@ class _ExportScreenState extends State<ExportScreen> {
 
         _buildOpcao(
           icon: Icons.assignment_outlined,
-          titulo: 'Resultados',
+          titulo: 'Resultados dos alunos',
           descricao: 'Notas e acertos de cada aluno por prova.',
           valor: _incluirResultados,
           onChanged: (v) => setState(() => _incluirResultados = v),
@@ -150,7 +153,7 @@ class _ExportScreenState extends State<ExportScreen> {
 
         _buildOpcao(
           icon: Icons.bar_chart_outlined,
-          titulo: 'Estatísticas',
+          titulo: 'Estatísticas da turma',
           descricao: 'Médias, distribuição de notas e desempenho por questão.',
           valor: _incluirEstatisticas,
           onChanged: (v) => setState(() => _incluirEstatisticas = v),
@@ -158,16 +161,16 @@ class _ExportScreenState extends State<ExportScreen> {
         const SizedBox(height: 10),
 
         _buildOpcao(
-          icon: Icons.people_outlined,
-          titulo: 'Lista de alunos',
-          descricao: 'Nomes e turmas dos alunos cadastrados.',
-          valor: _incluirListaAlunos,
-          onChanged: (v) => setState(() => _incluirListaAlunos = v),
+          icon: Icons.fact_check_outlined,
+          titulo: 'Gabarito e questões',
+          descricao: 'Enunciados, alternativas e gabarito de cada prova.',
+          valor: _incluirGabarito,
+          onChanged: (v) => setState(() => _incluirGabarito = v),
         ),
 
         const SizedBox(height: 32),
 
-        // Formato (informativo, mock)
+        // Formato (seleção mock, sem geração real de arquivo)
         Text(
           'Formato',
           style: theme.textTheme.titleMedium?.copyWith(
@@ -180,30 +183,21 @@ class _ExportScreenState extends State<ExportScreen> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Icon(
-                Icons.table_chart_outlined,
-                color: colorScheme.primary,
+              Expanded(
+                child: _buildFormatoOpcao(
+                  formato: _ExportFormat.excel,
+                  label: 'Excel (.xlsx)',
+                  icon: Icons.table_chart_outlined,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Planilha CSV',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Compatível com Excel, Google Sheets e LibreOffice.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                child: _buildFormatoOpcao(
+                  formato: _ExportFormat.csv,
+                  label: 'CSV (.csv)',
+                  icon: Icons.description_outlined,
                 ),
               ),
-              Icon(Icons.check_circle, color: colorScheme.primary),
             ],
           ),
         ),
@@ -211,7 +205,7 @@ class _ExportScreenState extends State<ExportScreen> {
         const SizedBox(height: 32),
 
         AppButton(
-          label: 'Exportar',
+          label: 'Exportar e compartilhar',
           icon: Icons.upload_outlined,
           expanded: true,
           onPressed: _hasSelection ? _iniciarExportacao : null,
@@ -228,6 +222,51 @@ class _ExportScreenState extends State<ExportScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildFormatoOpcao({
+    required _ExportFormat formato,
+    required String label,
+    required IconData icon,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isSelected = _formato == formato;
+
+    return InkWell(
+      onTap: () => setState(() => _formato = formato),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? colorScheme.primaryContainer : null,
+          border: Border.all(
+            color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
+            width: isSelected ? 1.5 : 1,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected
+                    ? colorScheme.onPrimaryContainer
+                    : colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -391,3 +430,5 @@ class _ExportScreenState extends State<ExportScreen> {
 }
 
 enum _ExportStatus { idle, loading, success, error }
+
+enum _ExportFormat { excel, csv }
