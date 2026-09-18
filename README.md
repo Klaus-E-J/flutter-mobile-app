@@ -210,7 +210,7 @@ A estrutura poderá ser expandida conforme novas funcionalidades e integrações
 
 Vídeo de demonstração da aplicação:
 
-[INSERIR LINK DO VÍDEO]
+[Video da aplicação](https://youtu.be/Xq8bVgVs0Ks)]
 
 ---
 
