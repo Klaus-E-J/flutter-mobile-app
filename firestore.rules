@@ -1,0 +1,47 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Este arquivo de regras atende às seguintes coleções do AvaliaPro:
+    //
+    // Collection: exams/{examId}
+    //   - Documentos de avaliação (título, turmas, quantidade de questões, data de atualização)
+    // Subcollection: exams/{examId}/questions/{questionId} (e subcoleções recursivas)
+    //   - Questões da prova e alternativas de resposta
+    // Collection: submissions/{submissionId} (e subcoleções recursivas)
+    //   - Submissões e gabaritos de provas dos alunos com notas e estatísticas
+    //
+    // ===============================================================
+
+    // Bloqueio padrão para todas as outras coleções não mapeadas (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Coleção exams e todas as suas subcoleções recursivamente
+    // Modo desenvolvimento / protótipo: permite leitura e escrita livre para criação de provas,
+    // edição de rascunhos e mesclagem de questões sem bloqueios de validação prévia.
+    match /exams/{examId} {
+      allow read, write: if true;
+
+      match /{document=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // Coleção submissions e todas as suas subcoleções recursivamente
+    // Modo desenvolvimento / protótipo: permite leitura e persistência de submissões de alunos.
+    match /submissions/{submissionId} {
+      allow read, write: if true;
+
+      match /{document=**} {
+        allow read, write: if true;
+      }
+    }
+  }
+}

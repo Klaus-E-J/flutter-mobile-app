@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "341928580644",
+    "project_id": "flutter-mobile-app-cb6e0",
+    "storage_bucket": "flutter-mobile-app-cb6e0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:341928580644:android:2e5a421703a4eae2df2ab1",
+        "android_client_info": {
+          "package_name": "br.edu.avalia_pro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8qgqQPj6cjDdns4Eq4uWJrq5odxhYiks"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
