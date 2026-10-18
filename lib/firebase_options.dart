@@ -2,9 +2,9 @@
 // ignore_for_file: type=lint
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Opções de configuração padrão do Firebase para o projeto `main-firebase-4284a`.
+/// Opções de configuração padrão do Firebase para o projeto `flutter-mobile-app-cb6e0`.
 ///
 /// Permite inicializar o Firebase no Flutter via código Dart de forma multiplataforma.
 class DefaultFirebaseOptions {
@@ -24,10 +24,16 @@ class DefaultFirebaseOptions {
       case TargetPlatform.windows:
         return windows;
       case TargetPlatform.linux:
+        // Alias para permitir a execucao do projeto em linux
+        // Nao e funcional devido a falta de implementacao da biblioteca firebase com interfaces nativas
+        // Mantido por referencia
+        /*
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
+        'you can reconfigure this by running the FlutterFire CLI again.',
         );
+        */
+        return web;
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',

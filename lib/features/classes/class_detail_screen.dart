@@ -3,40 +3,31 @@ import 'package:flutter/material.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_text_field.dart';
-import '../classes/importacao_alunos_screen.dart';
+import 'data/class_repository.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   const ClassDetailScreen({
     super.key,
+    required this.classId,
     required this.className,
-    required this.initialStudentCount,
   });
 
+  final String classId;
   final String className;
-  final int initialStudentCount;
 
   @override
-  State<ClassDetailScreen> createState() {
-    return _ClassDetailScreenState();
-  }
+  State<ClassDetailScreen> createState() => _ClassDetailScreenState();
 }
 
 class _ClassDetailScreenState extends State<ClassDetailScreen> {
-  final List<String> _students = [
-    'Ana Silva',
-    'Bruno Costa',
-    'Carla Mendes',
-    'Diego Souza',
-    'Elisa Rocha',
-  ];
-
-  late int _studentCount;
+  final ClassRepository _repository = ClassRepository();
+  late final Stream<List<StudentRecord>> _studentsStream;
+  bool _addingStudent = false;
 
   @override
   void initState() {
     super.initState();
-    // Usar sempre o tamanho real da lista mockada
-    _studentCount = _students.length;
+    _studentsStream = _repository.watchStudents(widget.classId);
   }
 
   Future<void> _showAddStudentDialog() async {
@@ -44,44 +35,26 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
       context: context,
       builder: (_) => const _AddStudentDialog(),
     );
+    if (!mounted || studentName == null) return;
 
-    if (!mounted || studentName == null) {
-      return;
+    setState(() => _addingStudent = true);
+    try {
+      await _repository.addStudent(classId: widget.classId, name: studentName);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível cadastrar o aluno: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _addingStudent = false);
     }
-
-    setState(() {
-      _students.add(studentName);
-      _studentCount++;
-    });
   }
 
-  Future<void> _abrirImportacao() async {
-    final importou = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ImportacaoAlunosScreen(
-          nomeTurma: widget.className,
-        ),
-      ),
-    );
-
-    if (!mounted || importou != true) return;
-
-    // Simula adição dos alunos importados
-    setState(() {
-      _students.addAll([
-        'Adriana Ferreira',
-        'Bruno Henrique',
-        'Camila Souza',
-        'Daniel Ribeiro',
-        'Eduarda Lima',
-      ]);
-      _studentCount = _students.length;
-    });
-
-    if (!mounted) return;
+  void _showImportNotAvailable() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Alunos importados com sucesso.')),
+      const SnackBar(
+        content: Text('A importação por arquivo ainda não está conectada ao Firestore. Nenhum aluno foi importado.'),
+      ),
     );
   }
 
@@ -89,67 +62,69 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.className,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text(widget.className, style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
-
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text(
-              'Alunos',
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$_studentCount alunos',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 16),
-            AppButton(
-              label: 'Adicionar aluno',
-              icon: Icons.add,
-              variant: AppButtonVariant.secondary,
-              expanded: true,
-              onPressed: _showAddStudentDialog,
-            ),
-            const SizedBox(height: 10),
-            AppButton(
-              label: 'Importar lista',
-              icon: Icons.upload_file_outlined,
-              variant: AppButtonVariant.text,
-              expanded: true,
-              onPressed: _abrirImportacao,
-            ),
-            const SizedBox(height: 8),
-            for (final student in _students) ...[
-              AppCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
+        child: StreamBuilder<List<StudentRecord>>(
+          stream: _studentsStream,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Erro ao carregar alunos: ${snapshot.error}'),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      student,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final students = snapshot.data!;
+            return ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                Text('Alunos', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text('${students.length} alunos', style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 16),
+                AppButton(
+                  label: _addingStudent ? 'Cadastrando...' : 'Adicionar aluno',
+                  icon: Icons.add,
+                  variant: AppButtonVariant.secondary,
+                  expanded: true,
+                  onPressed: _addingStudent ? null : _showAddStudentDialog,
+                ),
+                const SizedBox(height: 10),
+                AppButton(
+                  label: 'Importar lista',
+                  icon: Icons.upload_file_outlined,
+                  variant: AppButtonVariant.text,
+                  expanded: true,
+                  onPressed: _showImportNotAvailable,
+                ),
+                const SizedBox(height: 8),
+                if (students.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Text('Nenhum aluno cadastrado nesta turma.'),
+                  ),
+                  for (final student in students) ...[
+                    AppCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(student.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 2),
+                          Text('Aluno cadastrado', style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Aluno cadastrado',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                    const SizedBox(height: 8),
                   ],
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -160,27 +135,19 @@ class _AddStudentDialog extends StatefulWidget {
   const _AddStudentDialog();
 
   @override
-  State<_AddStudentDialog> createState() {
-    return _AddStudentDialogState();
-  }
+  State<_AddStudentDialog> createState() => _AddStudentDialogState();
 }
 
 class _AddStudentDialogState extends State<_AddStudentDialog> {
   final TextEditingController _controller = TextEditingController();
-
   String? _errorText;
 
   void _addStudent() {
     final name = _controller.text.trim();
-
     if (name.isEmpty) {
-      setState(() {
-        _errorText = 'Digite o nome do aluno';
-      });
-
+      setState(() => _errorText = 'Digite o nome do aluno');
       return;
     }
-
     Navigator.pop(context, name);
   }
 
@@ -204,12 +171,7 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
         },
       ),
       actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          child: const Text('Cancelar'),
-        ),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
         FilledButton(onPressed: _addStudent, child: const Text('Adicionar')),
       ],
     );

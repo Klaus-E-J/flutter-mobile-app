@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../core/widgets/app_widgets.dart';
+import '../../features/exams/data/exam_repository.dart';
 import 'models/questao_model.dart';
 import 'widgets/questao_card.dart';
 
 /// Tela de edição das questões dentro de uma prova (FE-07).
 ///
-/// Permite adicionar, editar e remover questões de uma prova.
-/// Os dados são mantidos localmente (mockados) dentro do contexto
-/// desta tela — não há integração com API nesta versão.
+/// Permite adicionar, editar, remover e persistir questões de uma prova.
 ///
 /// ## Estados da UI:
-/// - **Carregamento**: Breve simulação de loading inicial (mock).
+/// - **Carregamento**: consulta ao Firestore.
 /// - **Vazio**: Quando não há questões cadastradas.
 /// - **Lista preenchida**: Quando há uma ou mais questões.
 /// - **Erro de validação**: Quando o usuário tenta salvar/validar
@@ -19,26 +18,22 @@ import 'widgets/questao_card.dart';
 class ProvaQuestoesScreen extends StatefulWidget {
   const ProvaQuestoesScreen({
     super.key,
+    required this.examId,
     this.provaTitulo = 'Prova sem título',
-    this.questoesIniciais,
   });
 
-  /// Título da prova sendo editada (para exibição na AppBar).
+  final String examId;
   final String provaTitulo;
-
-  /// Questões iniciais opcionais. Se `null`, inicia com lista vazia.
-  /// Se passado, as questões são copiadas para o estado local.
-  final List<Questao>? questoesIniciais;
 
   @override
   State<ProvaQuestoesScreen> createState() => _ProvaQuestoesScreenState();
 }
 
 class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
-  /// Lista de questões da prova (estado local, vive e morre aqui).
+  final ExamRepository _repository = ExamRepository();
   List<Questao> _questoes = [];
 
-  /// Indica se está "carregando" dados (simulação mock).
+  /// Indica se uma operação de carregamento ou gravação está em andamento.
   bool _isLoading = true;
 
   /// Mensagem de erro global (ex.: validação geral ao salvar).
@@ -53,17 +48,21 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
     _carregarDados();
   }
 
-  /// Simula um breve carregamento e inicializa os dados.
   Future<void> _carregarDados() async {
-    // Simula latência de carregamento para demonstrar o estado de loading
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-
-    if (!mounted) return;
-
-    setState(() {
-      _questoes = widget.questoesIniciais ?? [];
-      _isLoading = false;
-    });
+    try {
+      final questions = await _repository.watchQuestions(widget.examId).first;
+      if (!mounted) return;
+      setState(() {
+        _questoes = questions;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _erroGlobal = 'Não foi possível carregar as questões: $error';
+      });
+    }
   }
 
   /// Adiciona uma nova questão vazia ao final da lista.
@@ -92,15 +91,6 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
     });
   }
 
-  /// Carrega questões mockadas de exemplo.
-  void _carregarMock() {
-    setState(() {
-      _questoes = criarQuestoesMock();
-      _temAlteracoes = true;
-      _erroGlobal = null;
-    });
-  }
-
   /// Valida todas as questões antes de "salvar".
   bool _validarTudo() {
     if (_questoes.isEmpty) {
@@ -120,9 +110,9 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
     if (questoesInvalidas.isNotEmpty) {
       setState(() {
         _erroGlobal =
-            'As seguintes questões possuem erros: '
-            '${questoesInvalidas.join(', ')}. '
-            'Corrija antes de salvar.';
+        'As seguintes questões possuem erros: '
+      '${questoesInvalidas.join(', ')}. '
+      'Corrija antes de salvar.';
       });
       return false;
     }
@@ -130,26 +120,31 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
     return true;
   }
 
-  /// Simula o "salvar" das questões da prova.
-  void _salvar() {
+  /// Persiste as questões da prova no Cloud Firestore.
+  Future<void> _salvar() async {
     if (!_validarTudo()) return;
-
-    // Nesta versão mock, apenas mostra feedback de sucesso
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${_questoes.length} questão(ões) salva(s) com sucesso!',
+    setState(() => _isLoading = true);
+    try {
+      await _repository.saveQuestions(widget.examId, _questoes);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${_questoes.length} questão(ões) salva(s) no Firestore.'),
+          behavior: SnackBarBehavior.floating,
         ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-
-    setState(() {
-      _temAlteracoes = false;
-      _erroGlobal = null;
-    });
-
-    // Em produção: Navigator.pop(context, _questoes);
+      );
+      setState(() {
+        _temAlteracoes = false;
+        _erroGlobal = null;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _erroGlobal = 'Não foi possível salvar as questões: $error';
+      });
+    }
   }
 
   /// Exibe confirmação antes de sair com alterações não salvas.
@@ -162,7 +157,7 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
         title: const Text('Alterações não salvas'),
         content: const Text(
           'Você tem alterações não salvas. '
-          'Deseja sair sem salvar?',
+        'Deseja sair sem salvar?',
         ),
         actions: [
           TextButton(
@@ -205,12 +200,12 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
         ),
         body: _buildBody(),
         floatingActionButton: !_isLoading
-            ? FloatingActionButton.extended(
-                onPressed: _adicionarQuestao,
-                icon: const Icon(Icons.add),
-                label: const Text('Questão'),
-              )
-            : null,
+        ? FloatingActionButton.extended(
+          onPressed: _adicionarQuestao,
+          icon: const Icon(Icons.add),
+          label: const Text('Questão'),
+        )
+        : null,
       ),
     );
   }
@@ -236,20 +231,13 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
         // Mensagem de erro global, se houver
         if (_erroGlobal != null) _buildErroGlobal(),
 
-        Expanded(
-          child: AppEmptyState(
-            icon: Icons.quiz_outlined,
-            title: 'Nenhuma questão cadastrada',
-            description:
-                'Adicione questões à prova usando o botão abaixo '
-                'ou carregue um exemplo para começar.',
-            action: OutlinedButton.icon(
-              onPressed: _carregarMock,
-              icon: const Icon(Icons.auto_awesome, size: 18),
-              label: const Text('Carregar exemplo'),
+          Expanded(
+            child: AppEmptyState(
+              icon: Icons.quiz_outlined,
+              title: 'Nenhuma questão cadastrada',
+              description: 'Adicione questões à prova usando o botão abaixo.',
             ),
           ),
-        ),
       ],
     );
   }
@@ -262,54 +250,54 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
         // Mensagem de erro global, se houver
         if (_erroGlobal != null) _buildErroGlobal(),
 
-        // Contagem e ações do topo
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-          child: Row(
-            children: [
-              Icon(
-                Icons.quiz_outlined,
-                size: 20,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${_questoes.length} questão(ões)',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+          // Contagem e ações do topo
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.quiz_outlined,
+                  size: 20,
+                  color: theme.colorScheme.primary,
                 ),
-              ),
-              const Spacer(),
-              // Botão de validação geral
-              TextButton.icon(
-                onPressed: _validarTudo,
-                icon: const Icon(Icons.playlist_add_check, size: 18),
-                label: const Text('Validar tudo'),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Text(
+                  '${_questoes.length} questão(ões)',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                // Botão de validação geral
+                TextButton.icon(
+                  onPressed: _validarTudo,
+                  icon: const Icon(Icons.playlist_add_check, size: 18),
+                  label: const Text('Validar tudo'),
+                ),
+              ],
+            ),
           ),
-        ),
 
-        const SizedBox(height: 4),
+          const SizedBox(height: 4),
 
-        // Lista de cards de questão
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-            itemCount: _questoes.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final questao = _questoes[index];
-              return QuestaoCard(
-                key: ValueKey(questao.id),
-                questao: questao,
-                numero: index + 1,
-                onChanged: _onQuestaoChanged,
-                onRemover: () => _removerQuestao(index),
-              );
-            },
+          // Lista de cards de questão
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+              itemCount: _questoes.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final questao = _questoes[index];
+                return QuestaoCard(
+                  key: ValueKey(questao.id),
+                  questao: questao,
+                  numero: index + 1,
+                  onChanged: _onQuestaoChanged,
+                  onRemover: () => _removerQuestao(index),
+                );
+              },
+            ),
           ),
-        ),
       ],
     );
   }

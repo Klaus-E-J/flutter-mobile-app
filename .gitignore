@@ -52,3 +52,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Dependências Node.js
+node_modules/
+
+# Arquivo compactado do projeto
+Projeto.zip
