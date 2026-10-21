@@ -5,11 +5,10 @@ import 'package:flutter/foundation.dart';
 
 import '../../firebase_options.dart';
 
-/// Inicializa Firebase, autentica a sessão e fornece acesso aos serviços.
+/// Inicializa Firebase e fornece acesso aos serviços de Firestore e Auth.
 ///
-/// O aplicativo usa autenticação anônima por padrão. Os documentos de negócio
-/// devem ficar sob `users/{uid}/...` para que as regras do Firestore possam
-/// isolar os dados de cada usuário.
+/// Os documentos de negócio devem ficar sob `users/{uid}/...` para que as regras
+/// do Firestore possam isolar os dados de cada usuário autenticado.
 class FirebaseService {
   FirebaseService._();
 
@@ -54,10 +53,9 @@ class FirebaseService {
     return firestore.collection('users').doc(uid).collection(collection);
   }
 
-  /// Inicializa Firebase e garante uma sessão anônima persistente no dispositivo.
+  /// Inicializa Firebase e prepara as instâncias do Firestore e FirebaseAuth.
   ///
-  /// Retorna `false` em caso de falha, mas registra o erro real; não afirma que
-  /// o aplicativo continuará sincronizando quando Firebase estiver indisponível.
+  /// Retorna `false` em caso de falha, registrando o erro nos logs.
   static Future<bool> initialize() async {
     if (_initialized) return true;
 
@@ -81,14 +79,17 @@ class FirebaseService {
         _firestoreConfigured = true;
       }
 
-      if (_authInstance!.currentUser == null) {
-        await _authInstance!.signInAnonymously();
-      }
-
       _initialized = true;
-      debugPrint(
-        'Firebase inicializado. Sessão autenticada: ${_authInstance!.currentUser?.uid}',
-      );
+      final currentUid = _authInstance!.currentUser?.uid;
+      if (currentUid != null) {
+        debugPrint(
+          'Firebase inicializado com sessão autenticada ativa: $currentUid',
+        );
+      } else {
+        debugPrint(
+          'Firebase inicializado sem sessão ativa. Redirecionando para login.',
+        );
+      }
       return true;
     } on FirebaseAuthException catch (error, stackTrace) {
       _initialized = false;

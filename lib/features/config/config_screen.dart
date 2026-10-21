@@ -3,30 +3,68 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../core/routes/app_routes.dart';
+import '../../core/services/firebase_service.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../access/data/auth_repository.dart';
+import '../access/data/user_profile.dart';
 
 /// Tela de Configurações (FE-14).
 ///
-/// Dados mockados — nenhuma persistência real.
-/// Integra visualmente com o restante do aplicativo
-/// usando os componentes e ThemeData centrais.
+/// Apresenta dados reais do perfil do professor logado via Firebase Auth
+/// e Cloud Firestore, permitindo gerenciar o código de acesso e encerrar a sessão.
 class ConfigScreen extends StatefulWidget {
-  const ConfigScreen({super.key});
+  const ConfigScreen({super.key, this.authRepository});
+
+  final AuthRepository? authRepository;
 
   @override
   State<ConfigScreen> createState() => _ConfigScreenState();
 }
 
 class _ConfigScreenState extends State<ConfigScreen> {
-  static const _schoolName = 'Escola Municipal Exemplo';
   static const _appVersion = '1.0.0';
+
+  late final AuthRepository _authRepository;
+  UserProfile? _userProfile;
+  bool _isLoadingProfile = true;
 
   String _accessCode = 'PROF-8421';
   bool _isCodeRevealed = false;
   bool _isAccessExpanded = false;
   bool _isAboutExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _authRepository = widget.authRepository ?? AuthRepository();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      if (FirebaseService.isInitialized && FirebaseService.currentUser != null) {
+        final profile = await _authRepository.getCurrentProfile();
+        if (mounted) {
+          setState(() {
+            _userProfile = profile;
+            if (profile != null && profile.accessCode.isNotEmpty) {
+              _accessCode = profile.accessCode;
+            }
+            _isLoadingProfile = false;
+          });
+          return;
+        }
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _isLoadingProfile = false;
+      });
+    }
+  }
 
   // ─── Lógica ──────────────────────────────────────────────────────────────
 
@@ -67,25 +105,54 @@ class _ConfigScreenState extends State<ConfigScreen> {
           'Esta ação não pode ser desfeita. Deseja continuar?',
       confirmLabel: 'Gerar novo código',
       cancelLabel: 'Cancelar',
-      onConfirm: () {
-        final random = Random();
-        final didSucceed = random.nextDouble() > 0.2;
+      onConfirm: () async {
+        final newCode = AuthRepository.generateAccessCode();
 
-        if (!didSucceed) {
+        try {
+          if (_userProfile != null) {
+            final updated = _userProfile!.copyWith(
+              accessCode: newCode,
+              updatedAt: DateTime.now(),
+            );
+            await _authRepository.updateProfile(updated);
+            _userProfile = updated;
+          }
+
+          if (mounted) {
+            setState(() {
+              _accessCode = newCode;
+              _isCodeRevealed = true;
+            });
+            _showFeedback('Novo código gerado com sucesso.', isSuccess: true);
+          }
+        } catch (e) {
           _showFeedback(
-            'Não foi possível gerar um novo código. Tente novamente.',
+            'Não foi possível atualizar o código: $e',
             isSuccess: false,
           );
-          return;
         }
+      },
+    );
+  }
 
-        final digits =
-            List.generate(4, (_) => random.nextInt(10)).join();
-        setState(() {
-          _accessCode = 'PROF-$digits';
-          _isCodeRevealed = true;
-        });
-        _showFeedback('Novo código gerado com sucesso.', isSuccess: true);
+  void _handleSignOut() {
+    AppDialog.show(
+      context: context,
+      title: 'Sair da conta',
+      message: 'Tem certeza que deseja encerrar sua sessão neste dispositivo?',
+      confirmLabel: 'Sair da conta',
+      cancelLabel: 'Cancelar',
+      onConfirm: () async {
+        try {
+          await _authRepository.signOut();
+        } catch (_) {}
+
+        if (!mounted) return;
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.access,
+          (route) => false,
+        );
       },
     );
   }
@@ -142,7 +209,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Cabeçalho da instituição
+              // Cabeçalho da instituição / perfil
               _buildProfileHeader(),
 
               const SizedBox(height: 28),
@@ -155,13 +222,18 @@ class _ConfigScreenState extends State<ConfigScreen> {
               _buildAccessCodeItem(),
               const SizedBox(height: 10),
 
-              // Itens desabilitados (em breve)
+              // Firebase e sincronização (ativo)
               _buildMenuItem(
-                icon: Icons.sync_outlined,
-                title: 'Firebase e sincronização',
-                enabled: false,
+                icon: Icons.cloud_done_outlined,
+                title: 'Firebase e sincronização em tempo real',
+                subtitle: FirebaseService.isInitialized
+                    ? 'Conectado à nuvem'
+                    : 'Modo local',
+                enabled: true,
               ),
               const SizedBox(height: 10),
+
+              // Exportação e dados
               _buildMenuItem(
                 icon: Icons.file_download_outlined,
                 title: 'Exportação e dados',
@@ -170,9 +242,10 @@ class _ConfigScreenState extends State<ConfigScreen> {
                 },
               ),
               const SizedBox(height: 10),
+
               _buildMenuItem(
                 icon: Icons.tune_outlined,
-                title: 'Preferências',
+                title: 'Preferências de visualização',
                 enabled: false,
               ),
 
@@ -184,6 +257,13 @@ class _ConfigScreenState extends State<ConfigScreen> {
 
               // Sobre o app (expansível)
               _buildAboutItem(),
+
+              const SizedBox(height: 28),
+
+              // Seção Sessão / Logout
+              _buildSectionLabel('Sessão'),
+              const SizedBox(height: 12),
+              _buildSignOutItem(),
             ],
           ),
         ),
@@ -195,6 +275,21 @@ class _ConfigScreenState extends State<ConfigScreen> {
 
   Widget _buildProfileHeader() {
     final colorScheme = Theme.of(context).colorScheme;
+
+    final displayName = _userProfile?.displayName ??
+        FirebaseService.currentUser?.displayName ??
+        'Professor';
+
+    final schoolName = (_userProfile?.school.isNotEmpty ?? false)
+        ? _userProfile!.school
+        : 'Escola / Instituição de ensino';
+
+    final email = _userProfile?.email.isNotEmpty == true
+        ? _userProfile!.email
+        : (FirebaseService.currentUser?.email ??
+            (FirebaseService.currentUser?.isAnonymous == true
+                ? 'Sessão convidado (anônima)'
+                : 'Conta ativa'));
 
     return AppCard(
       padding: const EdgeInsets.all(16),
@@ -218,16 +313,24 @@ class _ConfigScreenState extends State<ConfigScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _schoolName,
+                  _isLoadingProfile ? 'Carregando perfil...' : displayName,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Perfil da instituição',
+                  schoolName,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  email,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -251,6 +354,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
   Widget _buildMenuItem({
     required IconData icon,
     required String title,
+    String? subtitle,
     bool enabled = true,
     VoidCallback? onTap,
   }) {
@@ -270,14 +374,29 @@ class _ConfigScreenState extends State<ConfigScreen> {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: enabled
-                    ? colorScheme.onSurface
-                    : colorScheme.outlineVariant,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: enabled
+                        ? colorScheme.onSurface
+                        : colorScheme.outlineVariant,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           if (!enabled)
@@ -294,7 +413,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
                 ),
               ),
             )
-          else
+          else if (onTap != null)
             Icon(
               Icons.chevron_right,
               color: colorScheme.outlineVariant,
@@ -324,7 +443,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
               const SizedBox(width: 14),
               const Expanded(
                 child: Text(
-                  'Acesso e código',
+                  'Acesso e código institucional',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
@@ -365,7 +484,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Código de acesso',
+            'Código de acesso do professor',
             style: theme.textTheme.labelMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w600,
@@ -503,6 +622,39 @@ class _ConfigScreenState extends State<ConfigScreen> {
           duration: const Duration(milliseconds: 200),
         ),
       ],
+    );
+  }
+
+  Widget _buildSignOutItem() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return AppCard(
+      onTap: _handleSignOut,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(
+            Icons.logout,
+            size: 20,
+            color: colorScheme.error,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              'Sair da conta',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: colorScheme.error,
+              ),
+            ),
+          ),
+          Icon(
+            Icons.chevron_right,
+            color: colorScheme.error.withValues(alpha: 0.7),
+            size: 20,
+          ),
+        ],
+      ),
     );
   }
 }

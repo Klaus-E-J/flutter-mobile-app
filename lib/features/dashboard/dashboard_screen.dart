@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/routes/app_routes.dart';
+import '../../core/services/firebase_service.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import '../access/data/auth_repository.dart';
 import 'dashboard_view_model.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -14,6 +16,35 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final DashboardViewModel _viewModel = DashboardViewModel();
+  String _professorName = 'Professor';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfessorName();
+  }
+
+  Future<void> _loadProfessorName() async {
+    try {
+      if (!FirebaseService.isInitialized) return;
+      final user = FirebaseService.currentUser;
+      if (user == null) return;
+      if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _professorName = user.displayName!.trim().split(' ').first;
+          });
+        }
+        return;
+      }
+      final profile = await AuthRepository().getCurrentProfile();
+      if (profile != null && profile.name.trim().isNotEmpty && mounted) {
+        setState(() {
+          _professorName = profile.name.trim().split(' ').first;
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -42,7 +73,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.all(20),
           children: [
             Text(
-              'Olá, Professor',
+              'Olá, $_professorName',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

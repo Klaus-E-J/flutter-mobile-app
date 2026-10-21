@@ -18,7 +18,7 @@ class AvaliaProApp extends StatelessWidget {
       home: firebaseInitialized
       ? null
       : const _FirebaseInitializationErrorScreen(),
-      initialRoute: firebaseInitialized ? AppRoutes.access : null,
+      initialRoute: firebaseInitialized ? AppRoutes.root : null,
       onGenerateRoute: firebaseInitialized ? AppRoutes.onGenerateRoute : null,
     );
   }

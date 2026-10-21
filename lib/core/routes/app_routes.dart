@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../features/access/access_screen.dart';
+import '../../features/access/auth_gate.dart';
 import '../../features/classes/classes_screen.dart';
 import '../../features/config/config_screen.dart';
 import '../../features/correction/correction_screen.dart';
@@ -9,11 +10,11 @@ import '../../features/exams/exams_screen.dart';
 import '../../features/export/export_screen.dart';
 import '../../features/results/results_screen.dart';
 import '../../features/statistics/statistics_screen.dart';
-
 import '../../features/ui_preview/ui_preview_screen.dart';
 
 abstract final class AppRoutes {
-  static const access = '/';
+  static const root = '/';
+  static const access = '/access';
   static const dashboard = '/dashboard';
   static const classes = '/classes';
   static const exams = '/exams';
@@ -26,6 +27,9 @@ abstract final class AppRoutes {
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case root:
+        return _page(const AuthGate());
+
       case access:
         return _page(const AccessScreen());
 
