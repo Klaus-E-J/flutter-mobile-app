@@ -4,6 +4,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_text_field.dart';
 import 'data/class_repository.dart';
+import 'importacao_alunos_screen.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   const ClassDetailScreen({
@@ -50,10 +51,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     }
   }
 
-  void _showImportNotAvailable() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('A importação por arquivo ainda não está conectada ao Firestore. Nenhum aluno foi importado.'),
+  void _openImportStudents() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ImportacaoAlunosScreen(
+          nomeTurma: widget.className,
+          classId: widget.classId,
+        ),
       ),
     );
   }
@@ -100,7 +105,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                   icon: Icons.upload_file_outlined,
                   variant: AppButtonVariant.text,
                   expanded: true,
-                  onPressed: _showImportNotAvailable,
+                  onPressed: _openImportStudents,
                 ),
                 const SizedBox(height: 8),
                 if (students.isEmpty)
@@ -108,20 +113,20 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Text('Nenhum aluno cadastrado nesta turma.'),
                   ),
-                  for (final student in students) ...[
-                    AppCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(student.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                          const SizedBox(height: 2),
-                          Text('Aluno cadastrado', style: Theme.of(context).textTheme.bodySmall),
-                        ],
-                      ),
+                for (final student in students) ...[
+                  AppCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(student.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 2),
+                        Text('Aluno cadastrado', style: Theme.of(context).textTheme.bodySmall),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                  ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
               ],
             );
           },

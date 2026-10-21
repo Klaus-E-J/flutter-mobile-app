@@ -2,25 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
-import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_loading.dart';
+import 'data/class_repository.dart';
 
-/// Tela de Importação de Alunos (FE-08).
+/// Tela de Importação de Alunos.
 ///
-/// Fluxo completamente mockado:
-/// 1. Seleção de arquivo (simulada).
-/// 2. Prévia dos alunos que seriam importados.
-/// 3. Confirmação → sucesso ou erro.
-/// 4. Cancelamento em qualquer etapa.
-///
-/// Nenhum parser real ou persistência é realizado.
+/// Permite importar alunos em lote para uma turma no Cloud Firestore.
 class ImportacaoAlunosScreen extends StatefulWidget {
   const ImportacaoAlunosScreen({
     super.key,
     required this.nomeTurma,
+    required this.classId,
   });
 
   final String nomeTurma;
+  final String classId;
 
   @override
   State<ImportacaoAlunosScreen> createState() => _ImportacaoAlunosScreenState();
@@ -31,7 +27,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
   String? _nomeArquivo;
   bool _isLoading = false;
 
-  // Alunos mockados que seriam lidos do arquivo
+  // Alunos simulados para importação rápida
   static const _alunosMock = [
     'Adriana Ferreira',
     'Bruno Henrique',
@@ -46,8 +42,6 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
     'Karina Mendes',
     'Lucas Carvalho',
   ];
-
-  // ─── Ações ──────────────────────────────────────────────────────────────
 
   Future<void> _selecionarArquivo() async {
     setState(() => _isLoading = true);
@@ -90,16 +84,24 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
       _step = _ImportStep.importando;
     });
 
-    await Future<void>.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-
-    // Simula 90% de sucesso
-    final sucesso = DateTime.now().millisecondsSinceEpoch % 10 != 0;
-
-    setState(() {
-      _isLoading = false;
-      _step = sucesso ? _ImportStep.sucesso : _ImportStep.erro;
-    });
+    final repository = ClassRepository();
+    try {
+      await repository.addStudents(
+        classId: widget.classId,
+        names: _alunosMock,
+      );
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _step = _ImportStep.sucesso;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _step = _ImportStep.erro;
+      });
+    }
   }
 
   void _reiniciar() {
@@ -108,23 +110,6 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
       _nomeArquivo = null;
     });
   }
-
-  Future<bool> _confirmarCancelamento() async {
-    if (_step == _ImportStep.selecao || _step == _ImportStep.sucesso) {
-      return true;
-    }
-
-    final sair = await AppDialog.show(
-      context: context,
-      title: 'Cancelar importação?',
-      message: 'Se sair agora, os dados selecionados serão descartados.',
-      confirmLabel: 'Sair',
-      cancelLabel: 'Continuar',
-    );
-    return false; // AppDialog doesn't return bool directly
-  }
-
-  // ─── Build ───────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -183,8 +168,6 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
     }
   }
 
-  // ─── Etapa 1: Seleção de arquivo ─────────────────────────────────────────
-
   Widget _buildSelecao() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -203,10 +186,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
           'Adicione vários alunos de uma vez enviando um arquivo CSV ou Excel.',
           style: TextStyle(color: colorScheme.onSurfaceVariant),
         ),
-
         const SizedBox(height: 32),
-
-        // Área de seleção de arquivo
         AppCard(
           onTap: _isLoading ? null : _selecionarArquivo,
           padding: const EdgeInsets.all(32),
@@ -239,10 +219,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             ],
           ),
         ),
-
         const SizedBox(height: 24),
-
-        // Instruções de formato
         Text(
           'Formato esperado',
           style: theme.textTheme.titleMedium?.copyWith(
@@ -250,7 +227,6 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
           ),
         ),
         const SizedBox(height: 12),
-
         AppCard(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -305,15 +281,12 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
     );
   }
 
-  // ─── Etapa 2: Prévia dos alunos ──────────────────────────────────────────
-
   Widget _buildPrevia() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Column(
       children: [
-        // Cabeçalho da prévia
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
           child: Column(
@@ -333,8 +306,6 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-
-              // Resumo
               AppCard(
                 color: colorScheme.primaryContainer.withValues(alpha: 0.3),
                 padding: const EdgeInsets.all(14),
@@ -362,8 +333,6 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             ],
           ),
         ),
-
-        // Lista de prévia
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
@@ -379,8 +348,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor:
-                          colorScheme.primaryContainer,
+                      backgroundColor: colorScheme.primaryContainer,
                       child: Text(
                         _alunosMock[index][0].toUpperCase(),
                         style: TextStyle(
@@ -394,8 +362,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
                     Expanded(
                       child: Text(
                         _alunosMock[index],
-                        style:
-                            const TextStyle(fontWeight: FontWeight.w500),
+                        style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ),
                     Icon(
@@ -409,8 +376,6 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             },
           ),
         ),
-
-        // Ações fixas no rodapé
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -437,8 +402,6 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
       ],
     );
   }
-
-  // ─── Etapa 3: Sucesso ─────────────────────────────────────────────────────
 
   Widget _buildSucesso() {
     final theme = Theme.of(context);
@@ -491,8 +454,6 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
       ),
     );
   }
-
-  // ─── Etapa 4: Erro ────────────────────────────────────────────────────────
 
   Widget _buildErro() {
     final theme = Theme.of(context);

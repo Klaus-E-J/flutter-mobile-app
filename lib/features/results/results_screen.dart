@@ -4,55 +4,18 @@ import '../../core/routes/app_routes.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_empty_state.dart';
 import '../../screens/correcao/models/correcao_models.dart';
+import '../correction/data/submission_repository.dart';
 import 'exam_results_screen.dart';
-/// Central de Resultados (FE-10).
+
+/// Central de Resultados integrada com o Cloud Firestore.
 ///
-/// Lista as correções realizadas com dados mockados.
+/// Lista as correções reais salvas em `users/{uid}/submissions`.
 /// Ao selecionar uma prova, abre a lista de alunos daquela prova.
 class ResultsScreen extends StatelessWidget {
   const ResultsScreen({super.key});
 
-  static final List<_ResultadoResumo> _resultados = [
-    _ResultadoResumo(
-      prova: ProvaCorrecao(
-        id: '1',
-        titulo: 'Prova 1 — Matemática',
-        turma: '9º Ano A',
-        disciplina: 'Matemática',
-        totalQuestoes: 10,
-        totalAlunos: 28,
-        dataCriacao: DateTime(2026, 8, 20),
-      ),
-      resultados: gerarResultadosMock(20, 10),
-      totalErros: 1,
-    ),
-    _ResultadoResumo(
-      prova: ProvaCorrecao(
-        id: '2',
-        titulo: 'Português — Unidade 2',
-        turma: '8º Ano B',
-        disciplina: 'Português',
-        totalQuestoes: 15,
-        totalAlunos: 24,
-        dataCriacao: DateTime(2026, 8, 25),
-      ),
-      resultados: gerarResultadosMock(18, 15),
-      totalErros: 0,
-    ),
-    _ResultadoResumo(
-      prova: ProvaCorrecao(
-        id: '3',
-        titulo: 'Ciências — Bimestre 1',
-        turma: 'Ensino Médio — 1A',
-        disciplina: 'Ciências',
-        totalQuestoes: 25,
-        totalAlunos: 31,
-        dataCriacao: DateTime(2026, 8, 30),
-      ),
-      resultados: gerarResultadosMock(15, 25),
-      totalErros: 2,
-    ),
-  ];
+  static final SubmissionRepository _submissionRepository =
+      SubmissionRepository();
 
   @override
   Widget build(BuildContext context) {
@@ -64,96 +27,130 @@ class ResultsScreen extends StatelessWidget {
         title: const Text('Resultados'),
       ),
       body: SafeArea(
-        child: _resultados.isEmpty
-            ? AppEmptyState(
+        child: StreamBuilder<List<ExamCorrectionSummary>>(
+          stream: _submissionRepository.watchExamSummaries(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Erro ao carregar resultados: ${snapshot.error}'),
+                ),
+              );
+            }
+
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final summaries = snapshot.data!;
+            if (summaries.isEmpty) {
+              return AppEmptyState(
                 icon: Icons.assignment_outlined,
                 title: 'Nenhum resultado ainda',
                 description:
-                    'Os resultados aparecerão aqui após você concluir '
-                    'uma correção.',
+                    'Os resultados aparecerão aqui após você concluir uma correção.',
                 action: FilledButton.icon(
                   onPressed: () =>
                       Navigator.pushNamed(context, AppRoutes.correction),
                   icon: const Icon(Icons.adjust_outlined),
                   label: const Text('Iniciar correção'),
                 ),
-              )
-            : ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  Text(
-                    'Correções realizadas',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+              );
+            }
+
+            return ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                Text(
+                  'Correções realizadas',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_resultados.length} prova(s) corrigida(s)',
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${summaries.length} avaliação(ões) corrigida(s)',
+                  style: TextStyle(
+                    color: colorScheme.onSurfaceVariant,
                   ),
-
-                  const SizedBox(height: 16),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _AtalhoCard(
-                          icon: Icons.bar_chart_outlined,
-                          label: 'Estatísticas',
-                          onTap: () => Navigator.pushNamed(
-                            context,
-                            AppRoutes.statistics,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _AtalhoCard(
-                          icon: Icons.upload_outlined,
-                          label: 'Exportar',
-                          onTap: () => Navigator.pushNamed(
-                            context,
-                            AppRoutes.export,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  Text(
-                    'Histórico',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  for (final item in _resultados) ...[
-                    _ResultadoCard(
-                      item: item,
-                      onTap: () {
-                        Navigator.push(
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AtalhoCard(
+                        icon: Icons.bar_chart_outlined,
+                        label: 'Estatísticas',
+                        onTap: () => Navigator.pushNamed(
                           context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => ExamResultsScreen(
-                              prova: item.prova,
-                              resultados: item.resultados,
-                              totalErros: item.totalErros,
-                            ),
-                          ),
-                        );
-                      },
+                          AppRoutes.statistics,
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _AtalhoCard(
+                        icon: Icons.upload_outlined,
+                        label: 'Exportar',
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.export,
+                        ),
+                      ),
+                    ),
                   ],
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Histórico',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                for (final summary in summaries) ...[
+                  _SummaryCard(
+                    summary: summary,
+                    onTap: () {
+                      final prova = ProvaCorrecao(
+                        id: summary.examId,
+                        titulo: summary.examTitle,
+                        turma: summary.className,
+                        disciplina: 'Avaliação',
+                        totalQuestoes: summary.totalQuestions,
+                        totalAlunos: summary.studentCount,
+                        classId: summary.classId,
+                      );
+
+                      final resultados = summary.submissions.map((sub) {
+                        return ResultadoAluno(
+                          studentId: sub.studentId,
+                          nomeAluno: sub.studentName,
+                          acertos: sub.score,
+                          totalQuestoes: sub.totalQuestions,
+                          answers: sub.answers,
+                        );
+                      }).toList();
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => ExamResultsScreen(
+                            prova: prova,
+                            resultados: resultados,
+                            totalErros: 0,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
                 ],
-              ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -197,30 +194,21 @@ class _AtalhoCard extends StatelessWidget {
   }
 }
 
-class _ResultadoCard extends StatelessWidget {
-  const _ResultadoCard({
-    required this.item,
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
+    required this.summary,
     required this.onTap,
   });
 
-  final _ResultadoResumo item;
+  final ExamCorrectionSummary summary;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    final media = item.resultados.isEmpty
-        ? 0.0
-        : item.resultados.fold<double>(
-                0,
-                (sum, resultado) => sum + resultado.percentual,
-              ) /
-              item.resultados.length;
-
-    final corMedia =
-        media >= 60 ? colorScheme.primary : colorScheme.error;
+    final media = summary.averageScore;
+    final corMedia = media >= 60 ? colorScheme.primary : colorScheme.error;
 
     return AppCard(
       onTap: onTap,
@@ -235,22 +223,22 @@ class _ResultadoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.prova.titulo,
+                  summary.examTitle,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${item.prova.turma} · ${item.prova.disciplina}',
+                  summary.className,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${item.resultados.length} aluno(s) · '
-                  '${item.prova.totalQuestoes} questões',
+                  '${summary.studentCount} aluno(s) · '
+                  '${summary.totalQuestions} questões',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -258,9 +246,7 @@ class _ResultadoCard extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(width: 12),
-
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -279,9 +265,7 @@ class _ResultadoCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(width: 4),
-
           Icon(
             Icons.chevron_right,
             color: colorScheme.onSurfaceVariant,
@@ -290,16 +274,4 @@ class _ResultadoCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ResultadoResumo {
-  const _ResultadoResumo({
-    required this.prova,
-    required this.resultados,
-    required this.totalErros,
-  });
-
-  final ProvaCorrecao prova;
-  final List<ResultadoAluno> resultados;
-  final int totalErros;
 }

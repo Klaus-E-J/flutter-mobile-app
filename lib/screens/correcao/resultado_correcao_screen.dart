@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../features/correction/data/submission_repository.dart';
 import 'models/correcao_models.dart';
 
 /// Tela de resultados da correção (Step 4 — final).
 ///
-/// Exibe um resumo da correção (total de provas, média, erros)
-/// e a lista individual de alunos com suas notas.
-/// O botão "Concluir" retorna à tela inicial do fluxo.
-class ResultadoCorrecaoScreen extends StatelessWidget {
+/// Exibe um resumo da correção e a lista individual de alunos.
+/// O botão "Concluir Correção" salva os dados no Cloud Firestore.
+class ResultadoCorrecaoScreen extends StatefulWidget {
   const ResultadoCorrecaoScreen({
     super.key,
     required this.prova,
@@ -20,13 +20,69 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
   final int totalErros;
 
   @override
+  State<ResultadoCorrecaoScreen> createState() =>
+      _ResultadoCorrecaoScreenState();
+}
+
+class _ResultadoCorrecaoScreenState extends State<ResultadoCorrecaoScreen> {
+  bool _saving = false;
+
+  Future<void> _concluir(BuildContext context) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+
+    try {
+      final records = widget.resultados.map((r) {
+        return SubmissionRecord(
+          id: '',
+          examId: widget.prova.id,
+          examTitle: widget.prova.titulo,
+          classId: widget.prova.classId ?? '',
+          className: widget.prova.turma,
+          studentId: r.studentId ?? '',
+          studentName: r.nomeAluno,
+          score: r.acertos,
+          totalQuestions: r.totalQuestoes,
+          percentage: r.percentual,
+          answers: r.answers ?? [],
+        );
+      }).toList();
+
+      await SubmissionRepository().saveSubmissions(records);
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${records.length} resultado(s) gravado(s) no Firebase com sucesso!',
+          ),
+          backgroundColor: const Color(0xFF16A34A),
+        ),
+      );
+
+      Navigator.of(context).popUntil(
+        (route) => route.settings.name == '/dashboard' || route.isFirst,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Não foi possível salvar os resultados: $error'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _concluir(context);
+        if (!didPop && !_saving) _concluir(context);
       },
       child: Scaffold(
         appBar: AppBar(
@@ -34,19 +90,15 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
           automaticallyImplyLeading: false,
           actions: [
             TextButton(
-              onPressed: () => _concluir(context),
-              child: const Text('Concluir'),
+              onPressed: _saving ? null : () => _concluir(context),
+              child: Text(_saving ? 'Salvando...' : 'Concluir'),
             ),
           ],
         ),
         body: Column(
           children: [
-            // Resumo geral
             _buildResumo(theme),
-
             const SizedBox(height: 8),
-
-            // Título da lista
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -59,7 +111,7 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
                   ),
                   const Spacer(),
                   Text(
-                    '${resultados.length} aluno(s)',
+                    '${widget.resultados.length} aluno(s)',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -67,12 +119,9 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 8),
-
-            // Lista de resultados
             Expanded(
-              child: resultados.isEmpty
+              child: widget.resultados.isEmpty
                   ? Center(
                       child: Text(
                         'Nenhuma prova escaneada.',
@@ -83,11 +132,11 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      itemCount: resultados.length,
+                      itemCount: widget.resultados.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 6),
                       itemBuilder: (context, index) {
                         return _ResultadoAlunoCard(
-                          resultado: resultados[index],
+                          resultado: widget.resultados[index],
                           posicao: index + 1,
                         );
                       },
@@ -95,8 +144,6 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
             ),
           ],
         ),
-
-        // Botões de ação pós-correção
         bottomNavigationBar: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -128,9 +175,20 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: () => _concluir(context),
-                    icon: const Icon(Icons.check),
-                    label: const Text('Concluir Correção'),
+                    onPressed: _saving ? null : () => _concluir(context),
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check),
+                    label: Text(
+                      _saving ? 'Salvando no Firebase...' : 'Concluir Correção',
+                    ),
                   ),
                 ),
               ],
@@ -141,22 +199,15 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
     );
   }
 
-  void _concluir(BuildContext context) {
-    // Retorna até o Dashboard, descartando todo o fluxo de correção.
-    Navigator.of(context).popUntil(
-      (route) => route.settings.name == '/dashboard' || route.isFirst,
-    );
-  }
-
   Widget _buildResumo(ThemeData theme) {
     final colorScheme = theme.colorScheme;
-    final mediaAcertos = resultados.isEmpty
+    final mediaAcertos = widget.resultados.isEmpty
         ? 0.0
-        : resultados.fold<double>(
+        : widget.resultados.fold<double>(
               0,
-              (sum, r) => sum + r.percentual,
+              (acc, r) => acc + r.percentual,
             ) /
-            resultados.length;
+            widget.resultados.length;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -170,29 +221,25 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Título da prova
           Text(
-            prova.titulo,
+            widget.prova.titulo,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
           ),
           Text(
-            '${prova.turma} · ${prova.disciplina}',
+            '${widget.prova.turma} · ${widget.prova.disciplina}',
             style: theme.textTheme.bodySmall?.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
           ),
-
           const SizedBox(height: 16),
-
-          // Estatísticas
           Row(
             children: [
               _buildEstatistica(
                 theme: theme,
-                valor: '${resultados.length}',
+                valor: '${widget.resultados.length}',
                 label: 'Corrigidas',
                 cor: colorScheme.primary,
               ),
@@ -206,9 +253,9 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
               ),
               _buildEstatistica(
                 theme: theme,
-                valor: '$totalErros',
+                valor: '${widget.totalErros}',
                 label: 'Erros',
-                cor: totalErros > 0
+                cor: widget.totalErros > 0
                     ? colorScheme.error
                     : colorScheme.onSurfaceVariant,
               ),
@@ -248,7 +295,6 @@ class ResultadoCorrecaoScreen extends StatelessWidget {
   }
 }
 
-/// Card individual com o resultado de um aluno.
 class _ResultadoAlunoCard extends StatelessWidget {
   const _ResultadoAlunoCard({
     required this.resultado,
@@ -276,7 +322,6 @@ class _ResultadoAlunoCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
-            // Posição
             SizedBox(
               width: 28,
               child: Text(
@@ -286,8 +331,6 @@ class _ResultadoAlunoCard extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Nome do aluno
             Expanded(
               child: Text(
                 resultado.nomeAluno,
@@ -296,10 +339,7 @@ class _ResultadoAlunoCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-
             const SizedBox(width: 8),
-
-            // Nota / Percentual
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [

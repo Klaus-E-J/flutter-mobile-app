@@ -1,31 +1,31 @@
 import 'package:flutter/material.dart';
 
-import 'models/correcao_models.dart';
-import 'widgets/camera_placeholder.dart';
-import 'leitura_gabarito_screen.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_dialog.dart';
+import '../../../features/classes/data/class_repository.dart';
+import '../provas/models/questao_model.dart';
+import 'leitura_gabarito_screen.dart';
+import 'models/correcao_models.dart';
+import 'widgets/camera_placeholder.dart';
 
 /// Tela de leitura do QR Code da prova (Step 1/2).
-///
-/// O QR Code contém a sequência das questões e as respostas
-/// corretas. Quando a prova é individual (`provaIndividual`),
-/// esta tela é revisitada antes de cada gabarito do aluno
-/// para ler o QR específico dele. O professor lê na ordem
-/// que quiser — o QR identifica o aluno automaticamente.
 class LeituraQrScreen extends StatefulWidget {
   const LeituraQrScreen({
     super.key,
     required this.prova,
+    this.questions,
+    this.students,
     this.provasLidas = 0,
     this.errosLeitura = 0,
+    this.resultadosAcumulados = const [],
   });
 
   final ProvaCorrecao prova;
-
-  /// Progresso acumulado (usado no loop de prova individual).
+  final List<Questao>? questions;
+  final List<StudentRecord>? students;
   final int provasLidas;
   final int errosLeitura;
+  final List<ResultadoAluno> resultadosAcumulados;
 
   @override
   State<LeituraQrScreen> createState() => _LeituraQrScreenState();
@@ -56,14 +56,16 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
     await Future<void>.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
 
-    // Avança para leitura do gabarito do aluno
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => LeituraGabaritoScreen(
           prova: widget.prova,
+          questions: widget.questions,
+          students: widget.students,
           provasLidas: widget.provasLidas,
           errosLeitura: widget.errosLeitura,
+          resultadosIniciais: widget.resultadosAcumulados,
         ),
       ),
     );
@@ -136,86 +138,74 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
-
-              // Título
-              Text(
-                'Ler QR Code',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Identifica a sequência e as respostas da prova',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Câmera simulada
-              CameraPlaceholder(
-                label: 'QR CODE',
-                status: _status,
-                icon: _status == LeituraStatus.aguardando
-                    ? const Icon(Icons.qr_code, color: Colors.white, size: 28)
-                    : null,
-              ),
-
-              const SizedBox(height: 16),
-
-              // Feedback
-              if (_feedbackText != null)
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 16),
                 Text(
-                  _feedbackText!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: _feedbackIsError
-                        ? colorScheme.error
-                        : const Color(0xFF16A34A),
-                    fontWeight: FontWeight.w500,
+                  'Ler QR Code',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-
-              const Spacer(),
-
-              // Botão principal
-              AppButton(
-                label: _status == LeituraStatus.processando
-                    ? 'Processando...'
-                    : 'Capturar QR Code',
-                icon: _status == LeituraStatus.processando ? null : Icons.qr_code_scanner,
-                isLoading: _status == LeituraStatus.processando,
-                expanded: true,
-                onPressed: _status == LeituraStatus.aguardando ? _capturar : null,
-              ),
-
-              const SizedBox(height: 8),
-
-              // Simular erro (para testes)
-              if (_status == LeituraStatus.aguardando)
-                Center(
-                  child: TextButton(
-                    onPressed: _simularErro,
-                    child: Text(
-                      'Simular erro de leitura',
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 12,
+                const SizedBox(height: 4),
+                Text(
+                  'Identifica a sequência e as respostas da prova',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                CameraPlaceholder(
+                  label: 'QR CODE',
+                  status: _status,
+                  icon: _status == LeituraStatus.aguardando
+                      ? const Icon(Icons.qr_code, color: Colors.white, size: 28)
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                if (_feedbackText != null)
+                  Text(
+                    _feedbackText!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: _feedbackIsError
+                          ? colorScheme.error
+                          : const Color(0xFF16A34A),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                const Spacer(),
+                AppButton(
+                  label: _status == LeituraStatus.processando
+                      ? 'Processando...'
+                      : 'Capturar QR Code',
+                  icon: _status == LeituraStatus.processando
+                      ? null
+                      : Icons.qr_code_scanner,
+                  isLoading: _status == LeituraStatus.processando,
+                  expanded: true,
+                  onPressed:
+                      _status == LeituraStatus.aguardando ? _capturar : null,
+                ),
+                const SizedBox(height: 8),
+                if (_status == LeituraStatus.aguardando)
+                  Center(
+                    child: TextButton(
+                      onPressed: _simularErro,
+                      child: Text(
+                        'Simular erro de leitura',
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ),
-                ),
-
-              const SizedBox(height: 16),
-            ],
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         ),
       ),
-    ),
     );
   }
 }

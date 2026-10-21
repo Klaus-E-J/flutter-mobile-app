@@ -100,7 +100,7 @@ class _ClassStatsViewState extends State<ClassStatsView> {
 
         // Dropdown de prova
         DropdownButtonFormField<String>(
-          value: _selectedExam,
+          initialValue: _selectedExam,
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.description_outlined),
           ),
