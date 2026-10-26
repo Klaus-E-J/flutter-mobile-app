@@ -291,7 +291,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
                     _SectionTitle(
                       title: 'Questões',
                       subtitle:
-                      'O cadastro e a edição das questões pertencem à FE-07.',
+                      'Cadastre e edite as questões que fazem parte desta prova.',
                     ),
                     const SizedBox(height: 12),
                     AppButton(
