@@ -179,7 +179,7 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
   }
 
   @override
-  Future<List<String>> getAvailableStudents(String className) async {
+  Future<List<StudentOption>> getAvailableStudents(String className) async {
     final classes = await _classRepository.getClasses();
     final matchingClass = classes.cast<ClassRecord?>().firstWhere(
       (c) => c?.name == className,
@@ -189,31 +189,60 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
     if (matchingClass != null) {
       final students = await _classRepository.watchStudents(matchingClass.id).first;
       if (students.isNotEmpty) {
-        return students.map((s) => s.name).toList();
+        return students
+            .map((student) => StudentOption(id: student.id, name: student.name))
+            .toList();
       }
     }
 
-    // Fallback: alunos que tenham submissões nessa turma
+    // Fallback para alunos encontrados em submissões antigas ou sem cadastro.
+    // Usa studentId sempre que disponível para não misturar homônimos.
     final submissions = await _submissionRepository.getSubmissions();
-    final studentNames = submissions
-        .where((s) => s.className == className)
-        .map((s) => s.studentName)
-        .toSet()
-        .toList();
+    final byId = <String, StudentOption>{};
+    for (final submission in submissions.where((s) => s.className == className)) {
+      final id = submission.studentId.isNotEmpty
+          ? submission.studentId
+          : 'legacy:${submission.studentName}';
+      byId.putIfAbsent(
+        id,
+        () => StudentOption(id: id, name: submission.studentName),
+      );
+    }
 
-    studentNames.sort();
-    return studentNames;
+    final students = byId.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return students;
   }
 
   @override
   Future<StudentStats> getStudentStats(
-    String className,
-    String studentName,
-  ) async {
+      String className,
+      String studentId,
+      ) async {
     final submissions = await _submissionRepository.getSubmissions();
     final matching = submissions
-        .where((s) => s.className == className && s.studentName == studentName)
+        .where((s) => s.className == className && (studentId.startsWith('legacy:')
+        ? s.studentId.isEmpty && s.studentName == studentId.substring(7)
+        : s.studentId == studentId))
         .toList();
+
+    var studentName = matching.isNotEmpty ? matching.first.studentName : studentId;
+    if (matching.isEmpty && !studentId.startsWith('legacy:')) {
+      final classes = await _classRepository.getClasses();
+      final matchingClass = classes.cast<ClassRecord?>().firstWhere(
+            (c) => c?.name == className,
+        orElse: () => null,
+      );
+      if (matchingClass != null) {
+        final students = await _classRepository.watchStudents(matchingClass.id).first;
+        for (final student in students) {
+          if (student.id == studentId) {
+            studentName = student.name;
+            break;
+          }
+        }
+      }
+    }
 
     if (matching.isEmpty) {
       return StudentStats(
@@ -225,6 +254,7 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
       );
     }
 
+    // DECLARAÇÃO DAS VARIÁVEIS ANTES DO LOOP
     double totalGrade = 0.0;
     int approvedCount = 0;
     final subjectResults = <SubjectResult>[];
@@ -258,4 +288,5 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
       subjectResults: subjectResults,
     );
   }
+
 }

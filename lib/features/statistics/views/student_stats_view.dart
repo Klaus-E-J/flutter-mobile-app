@@ -24,8 +24,8 @@ class StudentStatsView extends StatefulWidget {
 }
 
 class _StudentStatsViewState extends State<StudentStatsView> {
-  List<String> _students = [];
-  String? _selectedStudent;
+  List<StudentOption> _students = [];
+  String? _selectedStudentId;
   StudentStats? _stats;
   bool _isLoading = true;
 
@@ -43,20 +43,20 @@ class _StudentStatsViewState extends State<StudentStatsView> {
 
     setState(() {
       _students = students;
-      _selectedStudent = students.isNotEmpty ? students.first : null;
+      _selectedStudentId = students.isNotEmpty ? students.first.id : null;
     });
 
-    if (_selectedStudent != null) {
-      await _loadStats(_selectedStudent!);
+    if (_selectedStudentId != null) {
+      await _loadStats(_selectedStudentId!);
     }
   }
 
-  Future<void> _loadStats(String studentName) async {
+  Future<void> _loadStats(String studentId) async {
     setState(() => _isLoading = true);
 
     final stats = await widget.repository.getStudentStats(
       widget.className,
-      studentName,
+      studentId,
     );
     if (!mounted) return;
 
@@ -93,18 +93,18 @@ class _StudentStatsViewState extends State<StudentStatsView> {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: _selectedStudent,
+              value: _selectedStudentId,
               isExpanded: true,
               icon: const Icon(Icons.arrow_drop_down),
               items: _students.map((student) {
-                return DropdownMenuItem(
-                  value: student,
-                  child: Text(student),
+                return DropdownMenuItem<String>(
+                  value: student.id,
+                  child: Text(student.name),
                 );
               }).toList(),
               onChanged: (value) {
-                if (value != null && value != _selectedStudent) {
-                  setState(() => _selectedStudent = value);
+                if (value != null && value != _selectedStudentId) {
+                  setState(() => _selectedStudentId = value);
                   _loadStats(value);
                 }
               },
