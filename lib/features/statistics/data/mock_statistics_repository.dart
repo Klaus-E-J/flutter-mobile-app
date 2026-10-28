@@ -221,15 +221,17 @@ class MockStatisticsRepository implements StatisticsRepository {
   }
 
   @override
-  Future<List<String>> getAvailableStudents(String className) async {
-    return _classStudents[className] ?? [];
+  Future<List<StudentOption>> getAvailableStudents(String className) async {
+    return (_classStudents[className] ?? [])
+        .map((name) => StudentOption(id: name, name: name))
+        .toList();
   }
-
   @override
   Future<StudentStats> getStudentStats(
-    String className,
-    String studentName,
-  ) async {
+      String className,
+      String studentId,
+      ) async {
+    final studentName = studentId;
     final Map<String, StudentStats> mockData = {
       'João Silva': const StudentStats(
         studentName: 'João Silva',

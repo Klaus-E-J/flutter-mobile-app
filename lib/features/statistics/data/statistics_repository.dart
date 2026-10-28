@@ -15,8 +15,8 @@ abstract class StatisticsRepository {
   Future<ClassStats> getClassStats(String className, String examName);
 
   /// Retorna a lista de alunos de uma turma.
-  Future<List<String>> getAvailableStudents(String className);
+  Future<List<StudentOption>> getAvailableStudents(String className);
 
   /// Retorna as estatísticas de um aluno específico.
-  Future<StudentStats> getStudentStats(String className, String studentName);
+  Future<StudentStats> getStudentStats(String className, String studentId);
 }
