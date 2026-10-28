@@ -68,15 +68,47 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
   @override
   void initState() {
     super.initState();
-    _provasLidas = widget.provasLidas;
+
+    final totalEsperado = _totalEsperado;
+    _provasLidas = totalEsperado > 0 && widget.provasLidas > totalEsperado
+        ? totalEsperado
+        : widget.provasLidas;
     _errosLeitura = widget.errosLeitura;
     _resultadosCapturados = List<ResultadoAluno>.from(widget.resultadosIniciais);
+  }
+
+  /// Total real esperado para a correção.
+  ///
+  /// Quando a lista de alunos foi carregada, ela é a fonte mais confiável.
+  /// Caso contrário, usa o total informado pela prova/turma.
+  int get _totalEsperado {
+    if (widget.students != null && widget.students!.isNotEmpty) {
+      return widget.students!.length;
+    }
+    return widget.prova.totalAlunos;
+  }
+
+  bool get _limiteAtingido =>
+      _totalEsperado > 0 && _provasLidas >= _totalEsperado;
+
+  int get _folhaAtualExibida {
+    final proximaFolha = _provasLidas + 1;
+    if (_totalEsperado <= 0) return proximaFolha;
+    return proximaFolha > _totalEsperado ? _totalEsperado : proximaFolha;
+  }
+
+  String get _textoProgresso {
+    if (_totalEsperado <= 0) {
+      return 'Prova $_folhaAtualExibida';
+    }
+    return 'Prova $_folhaAtualExibida de $_totalEsperado';
   }
 
   /// Nome do aluno atual (real da turma ou mock se vazia).
   String get _alunoAtual {
     if (widget.students != null && widget.students!.isNotEmpty) {
-      final index = _provasLidas % widget.students!.length;
+      final lastIndex = widget.students!.length - 1;
+      final index = _provasLidas > lastIndex ? lastIndex : _provasLidas;
       return widget.students![index].name;
     }
     final index = _provasLidas % _nomesMock.length;
@@ -85,7 +117,8 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
 
   String get _alunoIdAtual {
     if (widget.students != null && widget.students!.isNotEmpty) {
-      final index = _provasLidas % widget.students!.length;
+      final lastIndex = widget.students!.length - 1;
+      final index = _provasLidas > lastIndex ? lastIndex : _provasLidas;
       return widget.students![index].id;
     }
     return 'simulado_${_provasLidas + 1}';
@@ -93,6 +126,16 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
 
   /// Simula captura de um gabarito e gera as respostas reais calculadas.
   Future<void> _capturar() async {
+    if (_limiteAtingido) {
+      setState(() {
+        _status = LeituraStatus.sucesso;
+        _feedbackText =
+            'Todas as $_totalEsperado folhas previstas já foram processadas.';
+        _feedbackIsError = false;
+      });
+      return;
+    }
+
     setState(() {
       _status = LeituraStatus.processando;
       _feedbackText = null;
@@ -156,14 +199,25 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
       ),
     );
 
+    final concluiuTodasAsFolhas = _limiteAtingido;
+
     setState(() {
       _status = LeituraStatus.sucesso;
-      _feedbackText = 'Gabarito de $nomeCapturado registrado';
+      _feedbackText = concluiuTodasAsFolhas
+          ? 'Gabarito de $nomeCapturado registrado. '
+              'Todas as $_totalEsperado folhas previstas foram processadas.'
+          : 'Gabarito de $nomeCapturado registrado';
       _feedbackIsError = false;
     });
 
     await Future<void>.delayed(const Duration(milliseconds: 1000));
     if (!mounted) return;
+
+    // Ao concluir a última folha, permanece nesta tela com a captura
+    // bloqueada e permite ao usuário finalizar conscientemente o fluxo.
+    if (concluiuTodasAsFolhas) {
+      return;
+    }
 
     if (widget.prova.provaIndividual) {
       Navigator.pushReplacement(
@@ -334,14 +388,16 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Prova ${_provasLidas + 1} de ${widget.prova.totalAlunos > 0 ? widget.prova.totalAlunos : (_provasLidas + 1)}',
+                  _textoProgresso,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Aluno: $_alunoAtual',
+                  _limiteAtingido
+                      ? 'Todas as folhas previstas foram processadas'
+                      : 'Aluno: $_alunoAtual',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -360,19 +416,23 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                 ],
                 const Spacer(),
                 AppButton(
-                  label: _status == LeituraStatus.processando
-                      ? 'Processando...'
-                      : 'Capturar prova',
-                  icon: _status == LeituraStatus.processando
+                  label: _limiteAtingido
+                      ? 'Todas as folhas processadas'
+                      : _status == LeituraStatus.processando
+                          ? 'Processando...'
+                          : 'Capturar prova',
+                  icon: _limiteAtingido || _status == LeituraStatus.processando
                       ? null
                       : Icons.document_scanner_outlined,
                   isLoading: _status == LeituraStatus.processando,
                   expanded: true,
-                  onPressed:
-                      _status == LeituraStatus.aguardando ? _capturar : null,
+                  onPressed: _status == LeituraStatus.aguardando &&
+                          !_limiteAtingido
+                      ? _capturar
+                      : null,
                 ),
                 const SizedBox(height: 8),
-                if (_status == LeituraStatus.aguardando)
+                if (_status == LeituraStatus.aguardando && !_limiteAtingido)
                   Center(
                     child: TextButton(
                       onPressed: _simularErro,
