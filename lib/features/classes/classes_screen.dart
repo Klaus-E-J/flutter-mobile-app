@@ -100,23 +100,42 @@ class _ClassesScreenState extends State<ClassesScreen> {
                     child: Text('Nenhuma turma cadastrada. Crie uma turma para começar.'),
                   );
                 }
-                return Column(
-                  children: [
-                    for (final item in classes) ...[
-                      AppCard(
-                        onTap: () => _openClass(item),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(item.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 4),
-                            Text('${item.studentCount} alunos', style: Theme.of(context).textTheme.bodySmall),
-                          ],
-                        ),
+                // Grade responsiva: em celular vira 1 coluna ocupando toda a
+                // largura; em telas largas cria mais colunas (cada cartão com
+                // no máximo 420 de largura), aproveitando o espaço horizontal.
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: classes.length,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 420,
+                    mainAxisExtent: 88,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemBuilder: (context, index) {
+                    final item = classes[index];
+                    return AppCard(
+                      onTap: () => _openClass(item),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${item.studentCount} alunos',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                    ],
-                  ],
+                    );
+                  },
                 );
               },
             ),
