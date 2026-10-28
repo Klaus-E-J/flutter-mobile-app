@@ -35,35 +35,89 @@ class _StudentStatsViewState extends State<StudentStatsView> {
     _loadStudents();
   }
 
+  @override
+  void didUpdateWidget(covariant StudentStatsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.className != widget.className) {
+      _loadStudents();
+    }
+  }
+
   Future<void> _loadStudents() async {
-    final students = await widget.repository.getAvailableStudents(
-      widget.className,
-    );
-    if (!mounted) return;
+    setState(() => _isLoading = true);
 
-    setState(() {
-      _students = students;
-      _selectedStudentId = students.isNotEmpty ? students.first.id : null;
-    });
+    try {
+      final students = await widget.repository.getAvailableStudents(
+        widget.className,
+      );
+      if (!mounted) return;
 
-    if (_selectedStudentId != null) {
-      await _loadStats(_selectedStudentId!);
+      if (students.isEmpty) {
+        setState(() {
+          _students = [];
+          _selectedStudentId = null;
+          _stats = null;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _students = students;
+        _selectedStudentId = students.first.id;
+      });
+
+      await _loadStats(students.first.id);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _students = [];
+        _selectedStudentId = null;
+        _stats = null;
+        _isLoading = false;
+      });
     }
   }
 
   Future<void> _loadStats(String studentId) async {
     setState(() => _isLoading = true);
 
-    final stats = await widget.repository.getStudentStats(
-      widget.className,
-      studentId,
-    );
-    if (!mounted) return;
+    try {
+      final stats = await widget.repository.getStudentStats(
+        widget.className,
+        studentId,
+      );
+      if (!mounted) return;
 
-    setState(() {
-      _stats = stats;
-      _isLoading = false;
-    });
+      setState(() {
+        _stats = stats;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
+
+  /// Retorna o rótulo formatado para exibição no Dropdown.
+  /// Caso haja homônimos (alunos com o mesmo nome), adiciona um sufixo
+  /// identificador para que o usuário saiba qual aluno está selecionando.
+  String _formatStudentLabel(StudentOption student) {
+    final duplicates = _students
+        .where(
+          (s) => s.name.trim().toLowerCase() == student.name.trim().toLowerCase(),
+        )
+        .toList();
+
+    if (duplicates.length > 1) {
+      final index = duplicates.indexWhere((s) => s.id == student.id) + 1;
+      final shortId = student.id.length > 4
+          ? student.id.substring(0, 4)
+          : student.id;
+      return '${student.name} (#$index - $shortId)';
+    }
+
+    return student.name;
   }
 
   @override
@@ -82,6 +136,11 @@ class _StudentStatsViewState extends State<StudentStatsView> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        if (_isLoading) ...[
+          const LinearProgressIndicator(minHeight: 2),
+          const SizedBox(height: 8),
+        ],
+
         // Dropdown de aluno
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
@@ -99,7 +158,7 @@ class _StudentStatsViewState extends State<StudentStatsView> {
               items: _students.map((student) {
                 return DropdownMenuItem<String>(
                   value: student.id,
-                  child: Text(student.name),
+                  child: Text(_formatStudentLabel(student)),
                 );
               }).toList(),
               onChanged: (value) {

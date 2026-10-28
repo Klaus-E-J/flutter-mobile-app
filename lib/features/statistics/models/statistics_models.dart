@@ -60,6 +60,20 @@ class StudentOption {
 
   final String id;
   final String name;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudentOption &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name;
+
+  @override
+  int get hashCode => id.hashCode ^ name.hashCode;
+
+  @override
+  String toString() => 'StudentOption(id: $id, name: $name)';
 }
 
 class StudentStats {

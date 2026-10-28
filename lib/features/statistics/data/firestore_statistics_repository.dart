@@ -189,9 +189,11 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
     if (matchingClass != null) {
       final students = await _classRepository.watchStudents(matchingClass.id).first;
       if (students.isNotEmpty) {
-        return students
+        final studentOptions = students
             .map((student) => StudentOption(id: student.id, name: student.name))
-            .toList();
+            .toList()
+          ..sort((a, b) => a.name.compareTo(b.name));
+        return studentOptions;
       }
     }
 
@@ -216,18 +218,24 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
 
   @override
   Future<StudentStats> getStudentStats(
-      String className,
-      String studentId,
-      ) async {
+    String className,
+    String studentId,
+  ) async {
     final submissions = await _submissionRepository.getSubmissions();
-    final matching = submissions
-        .where((s) => s.className == className && (studentId.startsWith('legacy:')
-        ? s.studentId.isEmpty && s.studentName == studentId.substring(7)
-        : s.studentId == studentId))
+    final isLegacy = studentId.startsWith('legacy:');
+    final fallbackName = isLegacy ? studentId.substring(7) : studentId;
+
+    var matching = submissions
+        .where((s) => s.className == className && (isLegacy
+            ? s.studentId.isEmpty && s.studentName == fallbackName
+            : s.studentId == studentId))
         .toList();
 
-    var studentName = matching.isNotEmpty ? matching.first.studentName : studentId;
-    if (matching.isEmpty && !studentId.startsWith('legacy:')) {
+    var studentName = matching.isNotEmpty
+        ? matching.first.studentName
+        : fallbackName;
+
+    if (matching.isEmpty && !isLegacy) {
       final classes = await _classRepository.getClasses();
       final matchingClass = classes.cast<ClassRecord?>().firstWhere(
             (c) => c?.name == className,
@@ -239,6 +247,22 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
           if (student.id == studentId) {
             studentName = student.name;
             break;
+          }
+        }
+
+        // Compatibilidade com submissões legadas (onde studentId era vazio),
+        // associando por nome apenas se o aluno for o único com esse nome na turma.
+        if (studentName != studentId) {
+          final sameNameStudents =
+              students.where((s) => s.name == studentName).toList();
+          if (sameNameStudents.length == 1) {
+            final legacyMatching = submissions.where((s) =>
+                s.className == className &&
+                s.studentId.isEmpty &&
+                s.studentName == studentName).toList();
+            if (legacyMatching.isNotEmpty) {
+              matching = legacyMatching;
+            }
           }
         }
       }
@@ -288,5 +312,4 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
       subjectResults: subjectResults,
     );
   }
-
 }
