@@ -5,6 +5,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_text_field.dart';
 import 'class_detail_screen.dart';
+import 'data/class_repository.dart';
 
 class ClassesScreen extends StatefulWidget {
   const ClassesScreen({super.key});
@@ -14,41 +15,44 @@ class ClassesScreen extends StatefulWidget {
 }
 
 class _ClassesScreenState extends State<ClassesScreen> {
-  final List<ClassData> _classes = [
-    ClassData(name: '9º Ano A', grade: '9º Ano', studentCount: 28),
-    ClassData(name: '8º Ano B', grade: '8º Ano', studentCount: 24),
-    ClassData(
-      name: 'Ensino Médio — 1A',
-      grade: '1º Ano do Ensino Médio',
-      studentCount: 31,
-    ),
-  ];
+  final ClassRepository _repository = ClassRepository();
+  late final Stream<List<ClassRecord>> _classesStream;
+  bool _creating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _classesStream = _repository.watchClasses();
+  }
 
   Future<void> _showCreateClassDialog() async {
     final newClass = await showDialog<ClassData>(
       context: context,
       builder: (_) => const _CreateClassDialog(),
     );
+    if (!mounted || newClass == null) return;
 
-    if (!mounted || newClass == null) {
-      return;
+    setState(() => _creating = true);
+    try {
+      await _repository.createClass(name: newClass.name, grade: newClass.grade);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível criar a turma: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _creating = false);
     }
-
-    setState(() {
-      _classes.add(newClass);
-    });
   }
 
-  void _openClass(ClassData selectedClass) {
+  void _openClass(ClassRecord selectedClass) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) {
-          return ClassDetailScreen(
-            className: selectedClass.name,
-            initialStudentCount: selectedClass.studentCount,
-          );
-        },
+        builder: (_) => ClassDetailScreen(
+          classId: selectedClass.id,
+          className: selectedClass.name,
+        ),
       ),
     );
   }
@@ -57,110 +61,115 @@ class _ClassesScreenState extends State<ClassesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Turmas',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Turmas', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
-
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Text(
-              'Minhas turmas',
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
+            Text('Minhas turmas', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
-            Text(
-              'Cadastre e organize seus alunos',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
+            Text('Cadastre e organize seus alunos', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 16),
             AppButton(
-              label: 'Nova turma',
+              label: _creating ? 'Criando turma...' : 'Nova turma',
               icon: Icons.add,
               expanded: true,
-              onPressed: _showCreateClassDialog,
+              onPressed: _creating ? null : _showCreateClassDialog,
             ),
             const SizedBox(height: 14),
-            for (final item in _classes) ...[
-              AppCard(
-                onTap: () => _openClass(item),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.name,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${item.studentCount} alunos',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
+            StreamBuilder<List<ClassRecord>>(
+              stream: _classesStream,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text('Erro ao carregar turmas: ${snapshot.error}'),
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final classes = snapshot.data!;
+                if (classes.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Text('Nenhuma turma cadastrada. Crie uma turma para começar.'),
+                  );
+                }
+                // Grade responsiva: em celular vira 1 coluna ocupando toda a
+                // largura; em telas largas cria mais colunas (cada cartão com
+                // no máximo 420 de largura), aproveitando o espaço horizontal.
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: classes.length,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 420,
+                    mainAxisExtent: 88,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemBuilder: (context, index) {
+                    final item = classes[index];
+                    return AppCard(
+                      onTap: () => _openClass(item),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${item.studentCount} alunos',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ],
         ),
       ),
-
       bottomNavigationBar: NavigationBar(
         selectedIndex: 1,
         onDestinationSelected: (index) {
           switch (index) {
-            case 0:
-              Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
-              break;
-            case 1:
-              // Tela atual
-              break;
-            case 2:
-              Navigator.pushReplacementNamed(context, AppRoutes.exams);
-              break;
-            case 3:
-              Navigator.pushReplacementNamed(context, AppRoutes.correction);
-              break;
-            case 4:
-              _showMaisModal(context);
-              break;
+            case 0: Navigator.pushReplacementNamed(context, AppRoutes.dashboard); break;
+            case 1: break;
+            case 2: Navigator.pushReplacementNamed(context, AppRoutes.exams); break;
+            case 3: Navigator.pushReplacementNamed(context, AppRoutes.correction); break;
+            case 4: _showMaisModal(context); break;
           }
         },
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Início',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.groups_outlined),
-            selectedIcon: Icon(Icons.groups),
-            label: 'Turmas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.description_outlined),
-            selectedIcon: Icon(Icons.description),
-            label: 'Provas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.adjust_outlined),
-            selectedIcon: Icon(Icons.adjust),
-            label: 'Corrigir',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.more_horiz),
-            label: 'Mais',
-          ),
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Início'),
+          NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: 'Turmas'),
+          NavigationDestination(icon: Icon(Icons.description_outlined), selectedIcon: Icon(Icons.description), label: 'Provas'),
+          NavigationDestination(icon: Icon(Icons.adjust_outlined), selectedIcon: Icon(Icons.adjust), label: 'Corrigir'),
+          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Mais'),
         ],
       ),
     );
   }
+}
+
+class ClassData {
+  const ClassData({required this.name, required this.grade, this.studentCount = 0});
+  final String name;
+  final String grade;
+  final int studentCount;
 }
 
 class _CreateClassDialog extends StatefulWidget {
@@ -243,18 +252,6 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
       ],
     );
   }
-}
-
-class ClassData {
-  ClassData({
-    required this.name,
-    required this.grade,
-    required this.studentCount,
-  });
-
-  final String name;
-  final String grade;
-  final int studentCount;
 }
 
 void _showMaisModal(BuildContext context) {

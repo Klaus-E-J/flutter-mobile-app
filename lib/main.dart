@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'app.dart';
+import 'core/services/firebase_service.dart';
 
-void main() {
-  runApp(const AvaliaProApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final firebaseInitialized = await FirebaseService.initialize();
+  runApp(AvaliaProApp(firebaseInitialized: firebaseInitialized));
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'data/mock_statistics_repository.dart';
+import 'data/firestore_statistics_repository.dart';
 import 'data/statistics_repository.dart';
 import 'views/class_stats_view.dart';
 import 'views/student_stats_view.dart';
@@ -21,7 +21,7 @@ class _StatisticsScreenState extends State<StatisticsScreen>
   late final TabController _tabController;
 
   // TODO: Substituir por implementação real quando o banco for integrado.
-  final StatisticsRepository _repository = MockStatisticsRepository();
+  final StatisticsRepository _repository = FirestoreStatisticsRepository();
 
   List<String> _classes = [];
   String? _selectedClass;
@@ -70,7 +70,7 @@ class _StatisticsScreenState extends State<StatisticsScreen>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: DropdownButtonFormField<String>(
-                  value: _selectedClass,
+                  initialValue: _selectedClass,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.groups_outlined),
                   ),

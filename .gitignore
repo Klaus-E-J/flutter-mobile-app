@@ -26,12 +26,18 @@ migrate_working_dir/
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
-.dart_tool/
+**/.dart_tool/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+**/build/
 /coverage/
+.packages
+.flutter-plugins
+
+# Local platform configuration
+**/local.properties
+**/Pods/
 
 # Symbolication related
 app.*.symbols
@@ -46,3 +52,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Dependências Node.js
+node_modules/
+
+# Arquivo compactado do projeto
+Projeto.zip

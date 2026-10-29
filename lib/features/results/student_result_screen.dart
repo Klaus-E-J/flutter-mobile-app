@@ -42,6 +42,20 @@ class StudentResultScreen extends StatelessWidget {
   final ProvaCorrecao prova;
   final ResultadoAluno resultado;
 
+  List<QuestionResultMock> _obterQuestoes() {
+    if (resultado.answers != null && resultado.answers!.isNotEmpty) {
+      return resultado.answers!.map((a) {
+        return QuestionResultMock(
+          number: a.questionNumber,
+          marked: a.marked,
+          correct: a.correct,
+          isCorrect: a.isCorrect,
+        );
+      }).toList();
+    }
+    return _gerarQuestoesMock();
+  }
+
   List<QuestionResultMock> _gerarQuestoesMock() {
     const alternativas = [
       'A',
@@ -85,7 +99,7 @@ class StudentResultScreen extends StatelessWidget {
     final erros =
         resultado.totalQuestoes - resultado.acertos;
 
-    final questoes = _gerarQuestoesMock();
+    final questoes = _obterQuestoes();
 
     return Scaffold(
       appBar: AppBar(

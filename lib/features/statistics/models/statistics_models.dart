@@ -53,6 +53,29 @@ class QuestionStats {
   final Map<String, int> alternativePercentages;
 }
 
+/// Aluno disponível no seletor de estatísticas. O ID identifica o registro,
+/// enquanto o nome é usado apenas para apresentação na interface.
+class StudentOption {
+  const StudentOption({required this.id, required this.name});
+
+  final String id;
+  final String name;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StudentOption &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name;
+
+  @override
+  int get hashCode => id.hashCode ^ name.hashCode;
+
+  @override
+  String toString() => 'StudentOption(id: $id, name: $name)';
+}
+
 class StudentStats {
   const StudentStats({
     required this.studentName,

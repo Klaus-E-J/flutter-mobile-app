@@ -1,0 +1,24 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Todos os dados da aplicação devem estar em:
+    // users/{uid}/classes/{classId}
+    // users/{uid}/classes/{classId}/students/{studentId}
+    // users/{uid}/exams/{examId}
+    // users/{uid}/exams/{examId}/questions/{questionId}
+    // users/{uid}/submissions/{submissionId}
+    //
+    // O uid é fornecido pelo Firebase Authentication (sessão anônima ou conta
+    // autenticada). Um usuário só pode acessar a própria árvore de documentos.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // Negar explicitamente qualquer coleção fora do espaço por usuário.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,7 +1,4 @@
-// Modelos de dados mockados para o fluxo de correção.
-//
-// Estes modelos são exclusivos do módulo de correção e não dependem
-// de nenhum outro módulo (FE-06/07). Os dados vivem e morrem aqui.
+import '../../../features/correction/data/submission_repository.dart';
 
 /// Representa uma prova disponível para correção.
 class ProvaCorrecao {
@@ -14,6 +11,7 @@ class ProvaCorrecao {
     required this.totalAlunos,
     this.provaIndividual = false,
     this.dataCriacao,
+    this.classId,
   });
 
   final String id;
@@ -29,21 +27,26 @@ class ProvaCorrecao {
   final bool provaIndividual;
 
   final DateTime? dataCriacao;
+  final String? classId;
 }
 
-/// Resultado mockado de uma prova escaneada de um aluno.
+/// Resultado de uma prova escaneada de um aluno.
 class ResultadoAluno {
   const ResultadoAluno({
     required this.nomeAluno,
     required this.acertos,
     required this.totalQuestoes,
     this.erro = false,
+    this.studentId,
+    this.answers,
   });
 
   final String nomeAluno;
   final int acertos;
   final int totalQuestoes;
   final bool erro;
+  final String? studentId;
+  final List<SubmissionQuestionAnswer>? answers;
 
   double get percentual =>
       totalQuestoes > 0 ? (acertos / totalQuestoes) * 100 : 0;
@@ -54,7 +57,7 @@ class ResultadoAluno {
 /// Enum para estados da simulação de leitura.
 enum LeituraStatus { aguardando, processando, sucesso, erro }
 
-/// Gera a lista mockada de provas disponíveis para correção.
+/// Gera a lista mockada de provas disponíveis para correção (fallback/testes).
 List<ProvaCorrecao> gerarProvasMock() {
   return [
     ProvaCorrecao(
@@ -76,25 +79,6 @@ List<ProvaCorrecao> gerarProvasMock() {
       provaIndividual: true,
       dataCriacao: DateTime(2026, 8, 25),
     ),
-    ProvaCorrecao(
-      id: '3',
-      titulo: 'Simulado Bimestral',
-      turma: '7º Ano C',
-      disciplina: 'Ciências',
-      totalQuestoes: 20,
-      totalAlunos: 42,
-      provaIndividual: true,
-      dataCriacao: DateTime(2026, 8, 28),
-    ),
-    ProvaCorrecao(
-      id: '4',
-      titulo: 'Avaliação Diagnóstica',
-      turma: '6º Ano A',
-      disciplina: 'História',
-      totalQuestoes: 12,
-      totalAlunos: 30,
-      dataCriacao: DateTime(2026, 8, 30),
-    ),
   ];
 }
 
@@ -111,21 +95,10 @@ List<ResultadoAluno> gerarResultadosMock(int totalAlunos, int totalQuestoes) {
     'Hugo Pereira',
     'Isabela Rocha',
     'João Ferreira',
-    'Karen Almeida',
-    'Lucas Ribeiro',
-    'Marina Araújo',
-    'Nicolas Martins',
-    'Olívia Cardoso',
-    'Pedro Nascimento',
-    'Rafaela Gomes',
-    'Samuel Barbosa',
-    'Tatiana Moreira',
-    'Vinícius Carvalho',
   ];
 
   final resultados = <ResultadoAluno>[];
   for (int i = 0; i < totalAlunos && i < nomes.length; i++) {
-    // Simula acertos variados (entre 40% e 100%)
     final fator = 0.4 + (i % 7) * 0.1;
     final acertos = (totalQuestoes * fator).round().clamp(0, totalQuestoes);
 

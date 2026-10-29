@@ -1,11 +1,56 @@
 import 'package:flutter/material.dart';
 
 import '../../core/routes/app_routes.dart';
+import '../../core/services/firebase_service.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import '../access/data/auth_repository.dart';
+import 'dashboard_view_model.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final DashboardViewModel _viewModel = DashboardViewModel();
+  String _professorName = 'Professor';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfessorName();
+  }
+
+  Future<void> _loadProfessorName() async {
+    try {
+      if (!FirebaseService.isInitialized) return;
+      final user = FirebaseService.currentUser;
+      if (user == null) return;
+      if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _professorName = user.displayName!.trim().split(' ').first;
+          });
+        }
+        return;
+      }
+      final profile = await AuthRepository().getCurrentProfile();
+      if (profile != null && profile.name.trim().isNotEmpty && mounted) {
+        setState(() {
+          _professorName = profile.name.trim().split(' ').first;
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _viewModel.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +73,7 @@ class DashboardScreen extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           children: [
             Text(
-              'Olá, Professor',
+              'Olá, $_professorName',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -45,32 +90,38 @@ class DashboardScreen extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            const Row(
-              children: [
-                Expanded(
-                  child: _StatisticCard(
-                    value: '12',
-                    label: 'Provas',
-                    icon: Icons.description_outlined,
-                  ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _StatisticCard(
-                    value: '4',
-                    label: 'Turmas',
-                    icon: Icons.groups_outlined,
-                  ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _StatisticCard(
-                    value: '8',
-                    label: 'Pendentes',
-                    icon: Icons.pending_outlined,
-                  ),
-                ),
-              ],
+            ListenableBuilder(
+              listenable: _viewModel,
+              builder: (context, _) {
+                final stats = _viewModel.stats;
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _StatisticCard(
+                        value: stats.isLoading ? '-' : '${stats.examCount}',
+                        label: 'Provas',
+                        icon: Icons.description_outlined,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _StatisticCard(
+                        value: stats.isLoading ? '-' : '${stats.classCount}',
+                        label: 'Turmas',
+                        icon: Icons.groups_outlined,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _StatisticCard(
+                        value: stats.isLoading ? '-' : '${stats.pendingCount}',
+                        label: 'Pendentes',
+                        icon: Icons.pending_outlined,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
 
             const SizedBox(height: 20),
