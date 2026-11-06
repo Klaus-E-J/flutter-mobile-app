@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../screens/provas/prova_questoes_screen.dart';
 import '../classes/data/class_repository.dart';
 import 'data/exam_repository.dart';
+import 'exam_print_screen.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_text_field.dart';
@@ -119,13 +120,34 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     );
   }
 
+  Future<void> _openPrintAndVariants() async {
+    if (!await _saveExam(showFeedback: false)) return;
+    final examId = _examId;
+    if (examId == null || !mounted) return;
+    final selectedClasses = _availableClasses
+        .where((item) => _selectedClassIds.contains(item.id))
+        .toList();
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ExamPrintScreen(
+          examId: examId,
+          examTitle: _nameController.text.trim(),
+          classIds: selectedClasses.map((item) => item.id).toList(),
+          classNames: selectedClasses.map((item) => item.name).toList(),
+          sameExamForEveryone: _sameExamForEveryone,
+        ),
+      ),
+    );
+  }
+
   Future<bool> _saveExam({bool showFeedback = true}) async {
     final title = _nameController.text.trim();
     final hasName = title.isNotEmpty;
     final hasClass = _selectedClassIds.isNotEmpty;
     setState(() {
       _nameError = hasName ? null : 'Informe o nome da prova.';
-    _classesError = hasClass ? null : 'Selecione pelo menos uma turma.';
+      _classesError = hasClass ? null : 'Selecione pelo menos uma turma.';
     });
     if (!hasName || !hasClass) return false;
 
@@ -134,8 +156,8 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     setState(() => _saving = true);
     try {
       final selectedClasses = _availableClasses
-      .where((item) => _selectedClassIds.contains(item.id))
-      .toList();
+          .where((item) => _selectedClassIds.contains(item.id))
+          .toList();
       _examId = await _examRepository.saveExam(
         id: _examId,
         title: title,
@@ -143,11 +165,16 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
         classNames: selectedClasses.map((item) => item.name).toList(),
         sameExamForEveryone: _sameExamForEveryone,
       );
+      if (wasEditing && _examId != null) {
+        try {
+          await _examRepository.regenerateVariantsForExam(examId: _examId!);
+        } catch (_) {}
+      }
       if (!mounted) return true;
       if (showFeedback) {
         ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(wasEditing ? 'Prova salva no Firestore.' : 'Prova criada no Firestore.')));
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(wasEditing ? 'Prova salva no Firestore.' : 'Prova criada no Firestore.')));
       }
       setState(() {});
       return true;
@@ -289,9 +316,9 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
                     const SizedBox(height: 28),
 
                     _SectionTitle(
-                      title: 'Questões',
+                      title: 'Questões e Impressão (N3)',
                       subtitle:
-                      'Cadastre e edite as questões que fazem parte desta prova.',
+                          'Cadastre questões, embaralhe variantes e gere os cadernos e folhas OMR em PDF.',
                     ),
                     const SizedBox(height: 12),
                     AppButton(
@@ -300,6 +327,14 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
                       variant: AppButtonVariant.secondary,
                       expanded: true,
                       onPressed: _saving || _loadingClasses ? null : _openQuestions,
+                    ),
+                    const SizedBox(height: 10),
+                    AppButton(
+                      label: 'Gerar Variantes e Folhas PDF',
+                      icon: Icons.picture_as_pdf_outlined,
+                      variant: AppButtonVariant.secondary,
+                      expanded: true,
+                      onPressed: _saving || _loadingClasses ? null : _openPrintAndVariants,
                     ),
                     const SizedBox(height: 24),
 

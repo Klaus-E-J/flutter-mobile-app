@@ -129,6 +129,11 @@ class ResultsScreen extends StatelessWidget {
                           nomeAluno: sub.studentName,
                           acertos: sub.score,
                           totalQuestoes: sub.totalQuestions,
+                          variantId: sub.variantId,
+                          variantCode: sub.variantCode,
+                          emBranco: sub.blankCount,
+                          invalidas: sub.invalidCount,
+                          notaFinal10: sub.finalGrade,
                           answers: sub.answers,
                         );
                       }).toList();

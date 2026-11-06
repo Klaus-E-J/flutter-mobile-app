@@ -1,37 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../screens/correcao/models/correcao_models.dart';
+import '../correction/data/submission_repository.dart';
 
-/// Resultado mockado de uma questão.
+/// Resultado individual detalhado do aluno (N3-05 / N3-10).
 ///
-/// A FE-10 apenas exibe estes dados.
-/// Não realiza leitura, comparação ou correção real.
-class QuestionResultMock {
-  const QuestionResultMock({
-    required this.number,
-    required this.marked,
-    required this.correct,
-    required this.isCorrect,
-  });
-
-  final int number;
-  final String marked;
-  final String correct;
-  final bool isCorrect;
-}
-
-/// FE-10 — Resultado individual do aluno.
-///
-/// Mostra:
-/// - aluno;
-/// - prova;
-/// - nota;
-/// - acertos;
-/// - erros;
-/// - alternativa marcada;
-/// - alternativa correta.
-///
-/// Todos os dados são mockados.
+/// Exibe os dados reais da submissão corrigida pelo motor OMR:
+/// - Aluno, turma, prova e variante (Caderno);
+/// - Nota final (0-10), percentual, acertos, erros, em branco e marcações inválidas;
+/// - Detalhamento questão a questão confrontando alternativa marcada e gabarito da variante.
 class StudentResultScreen extends StatelessWidget {
   const StudentResultScreen({
     super.key,
@@ -42,53 +19,8 @@ class StudentResultScreen extends StatelessWidget {
   final ProvaCorrecao prova;
   final ResultadoAluno resultado;
 
-  List<QuestionResultMock> _obterQuestoes() {
-    if (resultado.answers != null && resultado.answers!.isNotEmpty) {
-      return resultado.answers!.map((a) {
-        return QuestionResultMock(
-          number: a.questionNumber,
-          marked: a.marked,
-          correct: a.correct,
-          isCorrect: a.isCorrect,
-        );
-      }).toList();
-    }
-    return _gerarQuestoesMock();
-  }
-
-  List<QuestionResultMock> _gerarQuestoesMock() {
-    const alternativas = [
-      'A',
-      'B',
-      'C',
-      'D',
-      'E',
-    ];
-
-    return List<QuestionResultMock>.generate(
-      resultado.totalQuestoes,
-      (index) {
-        final alternativaCorreta =
-            alternativas[index % alternativas.length];
-
-        // Apenas montagem de dados mockados para a N1.
-        // Não representa lógica real de correção.
-        final acertou = index < resultado.acertos;
-
-        final alternativaMarcada = acertou
-            ? alternativaCorreta
-            : alternativas[
-                (index + 1) % alternativas.length
-              ];
-
-        return QuestionResultMock(
-          number: index + 1,
-          marked: alternativaMarcada,
-          correct: alternativaCorreta,
-          isCorrect: acertou,
-        );
-      },
-    );
+  List<SubmissionQuestionAnswer> _obterQuestoes() {
+    return resultado.answers ?? const <SubmissionQuestionAnswer>[];
   }
 
   @override
@@ -96,9 +28,7 @@ class StudentResultScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final erros =
-        resultado.totalQuestoes - resultado.acertos;
-
+    final erros = resultado.totalQuestoes - resultado.acertos;
     final questoes = _obterQuestoes();
 
     return Scaffold(
@@ -107,40 +37,30 @@ class StudentResultScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            28,
-          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           children: [
             Text(
-              'Correção individual',
+              'Correção individual • Variante ${resultado.variantCode}',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w600,
               ),
             ),
-
-            const SizedBox(height: 14),
-
+            const SizedBox(height: 10),
             Text(
               resultado.nomeAluno,
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 4),
-
             Text(
               '${prova.turma} • ${prova.titulo}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-
             const SizedBox(height: 20),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(18),
@@ -152,29 +72,40 @@ class StudentResultScreen extends StatelessWidget {
                 ),
               ),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    resultado.nota,
-                    style:
-                        theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Nota ${resultado.nota10.toStringAsFixed(1)}',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Chip(
+                        label: Text('${resultado.percentual.toStringAsFixed(0)}%'),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
                   ),
-
                   const SizedBox(height: 6),
-
                   Text(
-                    '${resultado.acertos} acertos de '
-                    '${resultado.totalQuestoes} questões',
+                    '${resultado.acertos} acertos de ${resultado.totalQuestoes} questões (${resultado.nota})',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ),
-
+                  if (resultado.emBranco > 0 || resultado.invalidas > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${resultado.emBranco} em branco • ${resultado.invalidas} inválida(s)',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.error,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
-
                   Row(
                     children: [
                       Expanded(
@@ -185,13 +116,11 @@ class StudentResultScreen extends StatelessWidget {
                           color: Colors.green.shade700,
                         ),
                       ),
-
                       const SizedBox(width: 12),
-
                       Expanded(
                         child: _ContadorResultado(
                           icon: Icons.cancel_outlined,
-                          titulo: 'Erros',
+                          titulo: 'Erros / Branco',
                           valor: '$erros',
                           color: colorScheme.error,
                         ),
@@ -201,34 +130,36 @@ class StudentResultScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 24),
-
             Text(
               'Questões',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 4),
-
             Text(
-              'Confira a alternativa marcada pelo aluno '
-              'e a alternativa correta.',
+              'Confira a alternativa reconhecida na folha OMR e o gabarito da variante.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-
             const SizedBox(height: 12),
-
-            for (final questao in questoes) ...[
-              _QuestaoResultadoCard(
-                questao: questao,
-              ),
-              const SizedBox(height: 8),
-            ],
+            if (questoes.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  'Detalhamento por questão não disponível para este registro.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              for (final questao in questoes) ...[
+                _QuestaoResultadoCard(questao: questao),
+                const SizedBox(height: 8),
+              ],
           ],
         ),
       ),
@@ -271,12 +202,9 @@ class _ContadorResultado extends StatelessWidget {
             color: color,
             size: 20,
           ),
-
           const SizedBox(width: 8),
-
           Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 valor,
@@ -287,8 +215,7 @@ class _ContadorResultado extends StatelessWidget {
               Text(
                 titulo,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color:
-                      theme.colorScheme.onSurfaceVariant,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -304,7 +231,7 @@ class _QuestaoResultadoCard extends StatelessWidget {
     required this.questao,
   });
 
-  final QuestionResultMock questao;
+  final SubmissionQuestionAnswer questao;
 
   @override
   Widget build(BuildContext context) {
@@ -336,21 +263,18 @@ class _QuestaoResultadoCard extends StatelessWidget {
             size: 20,
             color: resultColor,
           ),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: Text(
-              'Questão ${questao.number}',
+              'Questão ${questao.questionNumber}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
-
           Flexible(
             child: Text(
-              'Marcada: ${questao.marked} • '
+              'Marcada: ${questao.marked.isEmpty ? "EM BRANCO" : questao.marked} • '
               'Correta: ${questao.correct}',
               textAlign: TextAlign.end,
               style: theme.textTheme.labelMedium?.copyWith(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../features/correction/data/submission_repository.dart';
+import '../../../features/results/student_result_screen.dart';
 import 'models/correcao_models.dart';
 
 /// Tela de resultados da correção (Step 4 — final).
@@ -44,6 +45,11 @@ class _ResultadoCorrecaoScreenState extends State<ResultadoCorrecaoScreen> {
           score: r.acertos,
           totalQuestions: r.totalQuestoes,
           percentage: r.percentual,
+          variantId: r.variantId,
+          variantCode: r.variantCode,
+          blankCount: r.emBranco,
+          invalidCount: r.invalidas,
+          finalGrade: r.nota10,
           answers: r.answers ?? [],
         );
       }).toList();
@@ -135,9 +141,20 @@ class _ResultadoCorrecaoScreenState extends State<ResultadoCorrecaoScreen> {
                       itemCount: widget.resultados.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 6),
                       itemBuilder: (context, index) {
+                        final item = widget.resultados[index];
                         return _ResultadoAlunoCard(
-                          resultado: widget.resultados[index],
+                          resultado: item,
                           posicao: index + 1,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => StudentResultScreen(
+                                  prova: widget.prova,
+                                  resultado: item,
+                                ),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -299,10 +316,12 @@ class _ResultadoAlunoCard extends StatelessWidget {
   const _ResultadoAlunoCard({
     required this.resultado,
     required this.posicao,
+    this.onTap,
   });
 
   final ResultadoAluno resultado;
   final int posicao;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -318,47 +337,51 @@ class _ResultadoAlunoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         side: BorderSide(color: colorScheme.outlineVariant),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 28,
-              child: Text(
-                '$posicao.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                resultado.nomeAluno,
-                style: theme.textTheme.bodyMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  resultado.nota,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: corNota,
-                  ),
-                ),
-                Text(
-                  '${resultado.percentual.toStringAsFixed(0)}%',
-                  style: theme.textTheme.labelSmall?.copyWith(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 28,
+                child: Text(
+                  '$posicao.',
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ],
-            ),
-          ],
+              ),
+              Expanded(
+                child: Text(
+                  resultado.nomeAluno,
+                  style: theme.textTheme.bodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    resultado.nota,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: corNota,
+                    ),
+                  ),
+                  Text(
+                    '${resultado.percentual.toStringAsFixed(0)}%',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

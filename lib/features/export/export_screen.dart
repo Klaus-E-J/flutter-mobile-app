@@ -1,27 +1,49 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
-import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_loading.dart';
+import '../correction/data/submission_repository.dart';
+import 'services/result_export_service.dart';
 
-/// Tela de Exportação (FE-12).
+/// Callback para compartilhamento ou salvamento de arquivo exportado.
+typedef ShareExportedFileCallback = Future<void> Function(
+  Uint8List bytes,
+  String fileName,
+  String mimeType,
+);
+
+/// Tela de Exportação de Resultados (N3-08).
 ///
-/// Fluxo mockado:
-/// 1. Selecionar conteúdo para exportar.
-/// 2. Iniciar exportação → progresso simulado.
-/// 3. Sucesso → compartilhar / salvar (simulado).
-/// 4. Erro (com opção de tentar novamente).
-///
-/// Nenhuma exportação real é realizada nesta versão.
+/// Extrai submissões reais do Cloud Firestore (`SubmissionRepository`),
+/// filtra por avaliação/turma e gera planilhas Excel (.xlsx) ou CSV (.csv)
+/// utilizando `ResultExportService` e `SharePlus`.
 class ExportScreen extends StatefulWidget {
-  const ExportScreen({super.key});
+  const ExportScreen({
+    super.key,
+    this.initialSubmissions,
+    this.onShareExportedFile,
+  });
+
+  final List<SubmissionRecord>? initialSubmissions;
+  final ShareExportedFileCallback? onShareExportedFile;
 
   @override
   State<ExportScreen> createState() => _ExportScreenState();
 }
 
 class _ExportScreenState extends State<ExportScreen> {
+  final ResultExportService _exportService = const ResultExportService();
+
+  List<SubmissionRecord> _allSubmissions = [];
+  String _selectedExamKey = 'ALL';
+  bool _loadingSubmissions = true;
+
   // Seleção de conteúdo
   bool _incluirResultados = true;
   bool _incluirEstatisticas = false;
@@ -32,33 +54,122 @@ class _ExportScreenState extends State<ExportScreen> {
 
   _ExportStatus _status = _ExportStatus.idle;
   String? _errorMessage;
+  Uint8List? _generatedBytes;
+  String? _generatedFileName;
+  String? _savedFilePath;
 
   bool get _hasSelection =>
       _incluirResultados || _incluirEstatisticas || _incluirGabarito;
 
-  /// Inicia o fluxo de exportação mockado.
+  @override
+  void initState() {
+    super.initState();
+    _carregarSubmissoes();
+  }
+
+  Future<void> _carregarSubmissoes() async {
+    if (widget.initialSubmissions != null) {
+      setState(() {
+        _allSubmissions = widget.initialSubmissions!;
+        _loadingSubmissions = false;
+      });
+      return;
+    }
+
+    setState(() => _loadingSubmissions = true);
+    try {
+      final subs = await SubmissionRepository().getSubmissions();
+      if (!mounted) return;
+      setState(() {
+        _allSubmissions = subs;
+        _loadingSubmissions = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _allSubmissions = [];
+        _loadingSubmissions = false;
+      });
+    }
+  }
+
+  List<SubmissionRecord> get _filteredSubmissions {
+    if (_selectedExamKey == 'ALL') return _allSubmissions;
+    return _allSubmissions
+        .where((s) => '${s.examId}|${s.classId}' == _selectedExamKey)
+        .toList();
+  }
+
+  Map<String, String> get _examOptions {
+    final map = <String, String>{'ALL': 'Todas as avaliações corrigidas'};
+    for (final s in _allSubmissions) {
+      final key = '${s.examId}|${s.classId}';
+      map.putIfAbsent(key, () => '${s.examTitle} • ${s.className}');
+    }
+    return map;
+  }
+
   Future<void> _iniciarExportacao() async {
     if (!_hasSelection) return;
 
     setState(() {
       _status = _ExportStatus.loading;
       _errorMessage = null;
+      _generatedBytes = null;
+      _generatedFileName = null;
+      _savedFilePath = null;
     });
 
-    // Simula processamento
-    await Future<void>.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
+    try {
+      final targetSubs = _filteredSubmissions;
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .substring(0, 19)
+          .replaceAll(':', '-');
 
-    // Simula 90% de sucesso
-    final sucesso = DateTime.now().millisecondsSinceEpoch % 10 != 0;
+      late final Uint8List bytes;
+      late final String fileName;
 
-    if (sucesso) {
-      setState(() => _status = _ExportStatus.success);
-    } else {
+      if (_formato == _ExportFormat.excel) {
+        bytes = _exportService.generateExcelBytes(
+          submissions: targetSubs,
+          includeStudentResults: _incluirResultados,
+          includeStatistics: _incluirEstatisticas,
+          includeAnswerMatrix: _incluirGabarito,
+        );
+        fileName = 'avalia_pro_resultados_$timestamp.xlsx';
+      } else {
+        bytes = _exportService.generateCsvBytes(
+          submissions: targetSubs,
+          includeStudentResults: _incluirResultados,
+          includeStatistics: _incluirEstatisticas,
+          includeAnswerMatrix: _incluirGabarito,
+        );
+        fileName = 'avalia_pro_resultados_$timestamp.csv';
+      }
+
+      String? localPath;
+      if (widget.onShareExportedFile == null) {
+        try {
+          final tempDir = await getTemporaryDirectory();
+          final file = File('${tempDir.path}${Platform.pathSeparator}$fileName');
+          await file.writeAsBytes(bytes, flush: true);
+          localPath = file.path;
+        } catch (_) {}
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _generatedBytes = bytes;
+        _generatedFileName = fileName;
+        _savedFilePath = localPath;
+        _status = _ExportStatus.success;
+      });
+    } catch (error) {
+      if (!mounted) return;
       setState(() {
         _status = _ExportStatus.error;
-        _errorMessage =
-            'Não foi possível gerar o arquivo. Tente novamente.';
+        _errorMessage = 'Não foi possível gerar o arquivo: $error';
       });
     }
   }
@@ -67,19 +178,50 @@ class _ExportScreenState extends State<ExportScreen> {
     setState(() {
       _status = _ExportStatus.idle;
       _errorMessage = null;
+      _generatedBytes = null;
+      _generatedFileName = null;
+      _savedFilePath = null;
     });
   }
 
   Future<void> _compartilhar() async {
-    await AppDialog.show(
-      context: context,
-      title: 'Compartilhar arquivo',
-      message:
-          'Em uma versão real, o arquivo seria aberto no sistema de '
-          'compartilhamento do dispositivo. Nesta versão, a ação é '
-          'simulada.',
-      confirmLabel: 'Entendido',
-    );
+    final bytes = _generatedBytes;
+    final fileName = _generatedFileName;
+    if (bytes == null || fileName == null) return;
+
+    final mimeType = _formato == _ExportFormat.excel
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'text/csv';
+
+    if (widget.onShareExportedFile != null) {
+      await widget.onShareExportedFile!(bytes, fileName, mimeType);
+      return;
+    }
+
+    try {
+      final xFile = _savedFilePath != null
+          ? XFile(_savedFilePath!, mimeType: mimeType, name: fileName)
+          : XFile.fromData(bytes, mimeType: mimeType, name: fileName);
+
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [xFile],
+          fileNameOverrides: [fileName],
+          subject: 'Resultados Avalia Pro - $fileName',
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _savedFilePath != null
+                ? 'Arquivo salvo em: $_savedFilePath'
+                : 'Erro ao abrir compartilhamento: $error',
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -89,7 +231,9 @@ class _ExportScreenState extends State<ExportScreen> {
         title: const Text('Exportação'),
       ),
       body: SafeArea(
-        child: _buildBody(),
+        child: _loadingSubmissions
+            ? const AppLoading(message: 'Carregando dados para exportação...')
+            : _buildBody(),
       ),
     );
   }
@@ -97,7 +241,7 @@ class _ExportScreenState extends State<ExportScreen> {
   Widget _buildBody() {
     switch (_status) {
       case _ExportStatus.loading:
-        return const AppLoading(message: 'Gerando arquivo...');
+        return const AppLoading(message: 'Gerando planilha...');
 
       case _ExportStatus.success:
         return _buildSuccess();
@@ -110,11 +254,10 @@ class _ExportScreenState extends State<ExportScreen> {
     }
   }
 
-  // ─── Estado idle: seleção de conteúdo ───────────────────────────────────
-
   Widget _buildSelector() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final options = _examOptions;
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -127,13 +270,49 @@ class _ExportScreenState extends State<ExportScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Selecione o que deseja gerar.',
+          'Gere planilhas Excel (.xlsx) ou CSV (.csv) com os resultados reais das avaliações.',
           style: TextStyle(color: colorScheme.onSurfaceVariant),
         ),
-
+        const SizedBox(height: 20),
+        Text(
+          'Avaliação / Turma',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          initialValue: options.containsKey(_selectedExamKey)
+              ? _selectedExamKey
+              : 'ALL',
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          ),
+          items: options.entries.map((entry) {
+            return DropdownMenuItem(
+              value: entry.key,
+              child: Text(
+                entry.value,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          }).toList(),
+          onChanged: (val) {
+            if (val != null) {
+              setState(() => _selectedExamKey = val);
+            }
+          },
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${_filteredSubmissions.length} submissão(ões) selecionada(s) para exportação',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colorScheme.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(height: 24),
-
-        // Opções de seleção
         Text(
           'Conteúdo',
           style: theme.textTheme.titleMedium?.copyWith(
@@ -141,36 +320,30 @@ class _ExportScreenState extends State<ExportScreen> {
           ),
         ),
         const SizedBox(height: 12),
-
         _buildOpcao(
           icon: Icons.assignment_outlined,
           titulo: 'Resultados dos alunos',
-          descricao: 'Notas e acertos de cada aluno por prova.',
+          descricao: 'Notas, variantes, acertos e situação de cada aluno.',
           valor: _incluirResultados,
           onChanged: (v) => setState(() => _incluirResultados = v),
         ),
         const SizedBox(height: 10),
-
         _buildOpcao(
           icon: Icons.bar_chart_outlined,
           titulo: 'Estatísticas da turma',
-          descricao: 'Médias, distribuição de notas e desempenho por questão.',
+          descricao: 'Médias, taxa de aprovação e desempenho por questão.',
           valor: _incluirEstatisticas,
           onChanged: (v) => setState(() => _incluirEstatisticas = v),
         ),
         const SizedBox(height: 10),
-
         _buildOpcao(
           icon: Icons.fact_check_outlined,
           titulo: 'Gabarito e questões',
-          descricao: 'Enunciados, alternativas e gabarito de cada prova.',
+          descricao: 'Matriz detalhada de alternativa marcada vs. gabarito por questão.',
           valor: _incluirGabarito,
           onChanged: (v) => setState(() => _incluirGabarito = v),
         ),
-
-        const SizedBox(height: 32),
-
-        // Formato (seleção mock, sem geração real de arquivo)
+        const SizedBox(height: 28),
         Text(
           'Formato',
           style: theme.textTheme.titleMedium?.copyWith(
@@ -178,7 +351,6 @@ class _ExportScreenState extends State<ExportScreen> {
           ),
         ),
         const SizedBox(height: 12),
-
         AppCard(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -201,16 +373,13 @@ class _ExportScreenState extends State<ExportScreen> {
             ],
           ),
         ),
-
-        const SizedBox(height: 32),
-
+        const SizedBox(height: 28),
         AppButton(
           label: 'Exportar e compartilhar',
           icon: Icons.upload_outlined,
           expanded: true,
           onPressed: _hasSelection ? _iniciarExportacao : null,
         ),
-
         if (!_hasSelection) ...[
           const SizedBox(height: 8),
           Text(
@@ -283,8 +452,7 @@ class _ExportScreenState extends State<ExportScreen> {
         value: valor,
         onChanged: (v) => onChanged(v ?? false),
         controlAffinity: ListTileControlAffinity.trailing,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         title: Row(
           children: [
             Icon(
@@ -312,11 +480,10 @@ class _ExportScreenState extends State<ExportScreen> {
     );
   }
 
-  // ─── Estado sucesso ──────────────────────────────────────────────────────
-
   Widget _buildSuccess() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final sizeKb = ((_generatedBytes?.length ?? 0) / 1024).toStringAsFixed(1);
 
     return Center(
       child: SingleChildScrollView(
@@ -346,6 +513,15 @@ class _ExportScreenState extends State<ExportScreen> {
             ),
             const SizedBox(height: 8),
             Text(
+              '${_generatedFileName ?? ''} ($sizeKb KB • ${_filteredSubmissions.length} registros)',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
               'O arquivo foi gerado com sucesso e está pronto para '
               'ser compartilhado ou salvo.',
               textAlign: TextAlign.center,
@@ -373,8 +549,6 @@ class _ExportScreenState extends State<ExportScreen> {
       ),
     );
   }
-
-  // ─── Estado erro ─────────────────────────────────────────────────────────
 
   Widget _buildError() {
     final theme = Theme.of(context);

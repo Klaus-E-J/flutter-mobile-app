@@ -32,15 +32,20 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   }
 
   Future<void> _showAddStudentDialog() async {
-    final studentName = await showDialog<String>(
+    final result = await showDialog<({String name, String matricula, String email})>(
       context: context,
       builder: (_) => const _AddStudentDialog(),
     );
-    if (!mounted || studentName == null) return;
+    if (!mounted || result == null) return;
 
     setState(() => _addingStudent = true);
     try {
-      await _repository.addStudent(classId: widget.classId, name: studentName);
+      await _repository.addStudent(
+        classId: widget.classId,
+        name: result.name,
+        matricula: result.matricula,
+        email: result.email,
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -51,13 +56,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     }
   }
 
-  void _openImportStudents() {
+  void _openImportStudents(List<StudentRecord> currentStudents) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ImportacaoAlunosScreen(
           nomeTurma: widget.className,
           classId: widget.classId,
+          existingStudents: currentStudents,
         ),
       ),
     );
@@ -105,7 +111,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                   icon: Icons.upload_file_outlined,
                   variant: AppButtonVariant.text,
                   expanded: true,
-                  onPressed: _openImportStudents,
+                  onPressed: () => _openImportStudents(students),
                 ),
                 const SizedBox(height: 8),
                 if (students.isEmpty)
@@ -121,7 +127,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                       children: [
                         Text(student.name, style: const TextStyle(fontWeight: FontWeight.w500)),
                         const SizedBox(height: 2),
-                        Text('Aluno cadastrado', style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          [
+                            if (student.matricula.isNotEmpty) 'Matrícula: ${student.matricula}',
+                            if (student.email.isNotEmpty) student.email,
+                            if (student.matricula.isEmpty && student.email.isEmpty) 'Aluno cadastrado',
+                          ].join(' • '),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ],
                     ),
                   ),
@@ -144,21 +157,32 @@ class _AddStudentDialog extends StatefulWidget {
 }
 
 class _AddStudentDialogState extends State<_AddStudentDialog> {
-  final TextEditingController _controller = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _matriculaController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   String? _errorText;
 
   void _addStudent() {
-    final name = _controller.text.trim();
+    final name = _nameController.text.trim();
     if (name.isEmpty) {
       setState(() => _errorText = 'Digite o nome do aluno');
       return;
     }
-    Navigator.pop(context, name);
+    Navigator.pop(
+      context,
+      (
+        name: name,
+        matricula: _matriculaController.text.trim(),
+        email: _emailController.text.trim(),
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _nameController.dispose();
+    _matriculaController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -166,14 +190,33 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Adicionar aluno'),
-      content: AppTextField(
-        label: 'Nome',
-        hint: 'Nome do aluno',
-        controller: _controller,
-        errorText: _errorText,
-        onChanged: (_) {
-          if (_errorText != null) setState(() => _errorText = null);
-        },
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppTextField(
+              label: 'Nome',
+              hint: 'Nome completo do aluno',
+              controller: _nameController,
+              errorText: _errorText,
+              onChanged: (_) {
+                if (_errorText != null) setState(() => _errorText = null);
+              },
+            ),
+            const SizedBox(height: 12),
+            AppTextField(
+              label: 'Matrícula (opcional)',
+              hint: 'Ex.: 2026001',
+              controller: _matriculaController,
+            ),
+            const SizedBox(height: 12),
+            AppTextField(
+              label: 'E-mail (opcional)',
+              hint: 'Ex.: aluno@escola.com',
+              controller: _emailController,
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
