@@ -6,6 +6,9 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../features/classes/data/class_repository.dart';
 import '../../../features/exams/data/exam_repository.dart';
+import '../../../features/exams/exam_print_screen.dart';
+import '../../../features/exams/models/exam_variant.dart';
+import '../../../features/exams/services/exam_randomizer_service.dart';
 import '../provas/models/questao_model.dart';
 import '../provas/prova_questoes_screen.dart';
 import 'leitura_qr_screen.dart';
@@ -119,11 +122,26 @@ class _SelecaoProvaScreenState extends State<SelecaoProvaScreen> {
 
     List<Questao> questions = [];
     List<StudentRecord> students = [];
+    List<ExamVariant> variants = [];
 
     try {
       questions = await _examRepository.watchQuestions(prova.id).first;
       if (prova.classId != null && prova.classId!.isNotEmpty) {
         students = await _classRepository.watchStudents(prova.classId!).first;
+      }
+      variants = await _examRepository.getVariants(prova.id);
+      if (variants.isEmpty && questions.isNotEmpty) {
+        variants = const ExamRandomizerService().generateVariants(
+          examId: prova.id,
+          questions: questions,
+          sameExamForEveryone: !prova.provaIndividual,
+          students: students,
+          classId: prova.classId,
+          className: prova.turma,
+        );
+        try {
+          await _examRepository.saveVariants(prova.id, variants);
+        } catch (_) {}
       }
     } catch (e) {
       debugPrint('Aviso ao carregar dados complementares: $e');
@@ -138,6 +156,25 @@ class _SelecaoProvaScreenState extends State<SelecaoProvaScreen> {
           prova: prova,
           questions: questions,
           students: students,
+          variants: variants,
+        ),
+      ),
+    );
+  }
+
+  void _abrirImpressaoPdf() {
+    final prova = _provaSelecionada;
+    if (prova == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExamPrintScreen(
+          examId: prova.id,
+          examTitle: prova.titulo,
+          classIds: prova.classId != null ? [prova.classId!] : const [],
+          classNames: [prova.turma],
+          sameExamForEveryone: !prova.provaIndividual,
         ),
       ),
     );
@@ -340,11 +377,23 @@ class _SelecaoProvaScreenState extends State<SelecaoProvaScreen> {
                           ),
                         const SizedBox(height: 24),
                         AppButton(
-                          label: 'Iniciar leitura',
+                          label: 'Iniciar leitura (QR + OMR)',
+                          icon: Icons.document_scanner_outlined,
                           expanded: true,
                           onPressed: (_provaSelecionada != null &&
                                   _provaSelecionada!.totalQuestoes > 0)
                               ? _iniciarLeitura
+                              : null,
+                        ),
+                        const SizedBox(height: 10),
+                        AppButton(
+                          label: 'Gerar Provas e Folhas OMR (PDF)',
+                          icon: Icons.picture_as_pdf_outlined,
+                          variant: AppButtonVariant.secondary,
+                          expanded: true,
+                          onPressed: (_provaSelecionada != null &&
+                                  _provaSelecionada!.totalQuestoes > 0)
+                              ? _abrirImpressaoPdf
                               : null,
                         ),
                         const SizedBox(height: 16),

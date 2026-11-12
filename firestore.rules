@@ -7,6 +7,7 @@ service cloud.firestore {
     // users/{uid}/classes/{classId}/students/{studentId}
     // users/{uid}/exams/{examId}
     // users/{uid}/exams/{examId}/questions/{questionId}
+    // users/{uid}/exams/{examId}/variants/{variantId}
     // users/{uid}/submissions/{submissionId}
     //
     // O uid é fornecido pelo Firebase Authentication (sessão anônima ou conta

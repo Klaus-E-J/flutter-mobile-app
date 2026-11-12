@@ -49,6 +49,11 @@ class SubmissionRecord {
     required this.totalQuestions,
     required this.percentage,
     required this.answers,
+    this.variantId = '',
+    this.variantCode = 'A',
+    this.blankCount = 0,
+    this.invalidCount = 0,
+    this.finalGrade,
     this.createdAt,
   });
 
@@ -63,9 +68,15 @@ class SubmissionRecord {
   final int totalQuestions;
   final double percentage;
   final List<SubmissionQuestionAnswer> answers;
+  final String variantId;
+  final String variantCode;
+  final int blankCount;
+  final int invalidCount;
+  final double? finalGrade;
   final DateTime? createdAt;
 
   String get nota => '$score/$totalQuestions';
+  double get notaFinal10 => finalGrade ?? (totalQuestions > 0 ? (score / totalQuestions) * 10.0 : 0.0);
 
   factory SubmissionRecord.fromDocument(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
@@ -85,6 +96,11 @@ class SubmissionRecord {
       score: (data['score'] as num?)?.toInt() ?? 0,
       totalQuestions: (data['totalQuestions'] as num?)?.toInt() ?? 0,
       percentage: (data['percentage'] as num?)?.toDouble() ?? 0.0,
+      variantId: data['variantId'] as String? ?? '',
+      variantCode: data['variantCode'] as String? ?? 'A',
+      blankCount: (data['blankCount'] as num?)?.toInt() ?? 0,
+      invalidCount: (data['invalidCount'] as num?)?.toInt() ?? 0,
+      finalGrade: (data['finalGrade'] as num?)?.toDouble(),
       answers: rawAnswers
           .whereType<Map<String, dynamic>>()
           .map(SubmissionQuestionAnswer.fromMap)
@@ -104,6 +120,11 @@ class SubmissionRecord {
       'score': score,
       'totalQuestions': totalQuestions,
       'percentage': percentage,
+      'variantId': variantId,
+      'variantCode': variantCode,
+      'blankCount': blankCount,
+      'invalidCount': invalidCount,
+      'finalGrade': notaFinal10,
       'answers': answers.map((a) => a.toMap()).toList(),
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
@@ -150,22 +171,30 @@ class SubmissionRepository {
   CollectionReference<Map<String, dynamic>> get _submissions =>
       FirebaseService.userCollection('submissions');
 
-  /// Salva uma lista de submissões em lote (batch).
+  /// Salva uma lista de submissões em lotes seguros (até 400 operações por batch).
   Future<void> saveSubmissions(List<SubmissionRecord> records) async {
     if (records.isEmpty) return;
 
-    final batch = FirebaseService.firestore.batch();
-    for (final record in records) {
-      final docRef = record.id.isEmpty
-          ? _submissions.doc()
-          : _submissions.doc(record.id);
+    const chunkSize = 400;
+    for (var start = 0; start < records.length; start += chunkSize) {
+      final end = (start + chunkSize < records.length)
+          ? start + chunkSize
+          : records.length;
+      final chunk = records.sublist(start, end);
 
-      final data = record.toMap();
-      data['createdAt'] = FieldValue.serverTimestamp();
-      batch.set(docRef, data);
+      final batch = FirebaseService.firestore.batch();
+      for (final record in chunk) {
+        final docRef = record.id.isEmpty
+            ? _submissions.doc()
+            : _submissions.doc(record.id);
+
+        final data = record.toMap();
+        data['createdAt'] = FieldValue.serverTimestamp();
+        batch.set(docRef, data);
+      }
+
+      await batch.commit();
     }
-
-    await batch.commit();
   }
 
   /// Observa todas as submissões em tempo real.

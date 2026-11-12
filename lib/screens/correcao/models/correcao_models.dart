@@ -22,15 +22,14 @@ class ProvaCorrecao {
   final int totalAlunos;
 
   /// Se `true`, cada aluno tem uma sequência diferente de questões
-  /// e o QR Code precisa ser lido antes de cada gabarito.
-  /// Se `false`, a sequência é a mesma para todos (QR lido uma vez).
+  /// e o QR Code identifica a variante individual do aluno.
   final bool provaIndividual;
 
   final DateTime? dataCriacao;
   final String? classId;
 }
 
-/// Resultado de uma prova escaneada de um aluno.
+/// Resultado de uma prova escaneada e corrigida de um aluno (N3-04 / N3-05).
 class ResultadoAluno {
   const ResultadoAluno({
     required this.nomeAluno,
@@ -38,6 +37,11 @@ class ResultadoAluno {
     required this.totalQuestoes,
     this.erro = false,
     this.studentId,
+    this.variantId = '',
+    this.variantCode = 'A',
+    this.emBranco = 0,
+    this.invalidas = 0,
+    this.notaFinal10,
     this.answers,
   });
 
@@ -46,68 +50,21 @@ class ResultadoAluno {
   final int totalQuestoes;
   final bool erro;
   final String? studentId;
+  final String variantId;
+  final String variantCode;
+  final int emBranco;
+  final int invalidas;
+  final double? notaFinal10;
   final List<SubmissionQuestionAnswer>? answers;
 
   double get percentual =>
       totalQuestoes > 0 ? (acertos / totalQuestoes) * 100 : 0;
 
+  double get nota10 =>
+      notaFinal10 ?? (totalQuestoes > 0 ? (acertos / totalQuestoes) * 10.0 : 0.0);
+
   String get nota => '$acertos/$totalQuestoes';
 }
 
-/// Enum para estados da simulação de leitura.
+/// Estados do leitor de câmera/imagem OMR.
 enum LeituraStatus { aguardando, processando, sucesso, erro }
-
-/// Gera a lista mockada de provas disponíveis para correção (fallback/testes).
-List<ProvaCorrecao> gerarProvasMock() {
-  return [
-    ProvaCorrecao(
-      id: '1',
-      titulo: 'Prova 1 - Matemática',
-      turma: '9º Ano A',
-      disciplina: 'Matemática',
-      totalQuestoes: 10,
-      totalAlunos: 35,
-      dataCriacao: DateTime(2026, 8, 20),
-    ),
-    ProvaCorrecao(
-      id: '2',
-      titulo: 'Prova 2 - Português',
-      turma: '8º Ano B',
-      disciplina: 'Português',
-      totalQuestoes: 15,
-      totalAlunos: 28,
-      provaIndividual: true,
-      dataCriacao: DateTime(2026, 8, 25),
-    ),
-  ];
-}
-
-/// Gera resultados mockados de alunos para a tela de resultados.
-List<ResultadoAluno> gerarResultadosMock(int totalAlunos, int totalQuestoes) {
-  final nomes = [
-    'Ana Silva',
-    'Bruno Costa',
-    'Carla Souza',
-    'Diego Oliveira',
-    'Elena Santos',
-    'Felipe Mendes',
-    'Gabriela Lima',
-    'Hugo Pereira',
-    'Isabela Rocha',
-    'João Ferreira',
-  ];
-
-  final resultados = <ResultadoAluno>[];
-  for (int i = 0; i < totalAlunos && i < nomes.length; i++) {
-    final fator = 0.4 + (i % 7) * 0.1;
-    final acertos = (totalQuestoes * fator).round().clamp(0, totalQuestoes);
-
-    resultados.add(ResultadoAluno(
-      nomeAluno: nomes[i],
-      acertos: acertos,
-      totalQuestoes: totalQuestoes,
-    ));
-  }
-
-  return resultados;
-}

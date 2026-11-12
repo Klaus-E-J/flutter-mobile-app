@@ -120,12 +120,15 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
     return true;
   }
 
-  /// Persiste as questões da prova no Cloud Firestore.
+  /// Persiste as questões da prova no Cloud Firestore e sincroniza as variantes (N3-02).
   Future<void> _salvar() async {
     if (!_validarTudo()) return;
     setState(() => _isLoading = true);
     try {
       await _repository.saveQuestions(widget.examId, _questoes);
+      try {
+        await _repository.regenerateVariantsForExam(examId: widget.examId);
+      } catch (_) {}
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
