@@ -130,7 +130,23 @@ class _SelecaoProvaScreenState extends State<SelecaoProvaScreen> {
         students = await _classRepository.watchStudents(prova.classId!).first;
       }
       variants = await _examRepository.getVariants(prova.id);
-      if (variants.isEmpty && questions.isNotEmpty) {
+      bool needsRegeneration = variants.isEmpty;
+      if (!needsRegeneration && prova.provaIndividual && students.isNotEmpty) {
+        final variantStudentIds = variants
+            .map((v) => v.studentId)
+            .whereType<String>()
+            .where((id) => id.isNotEmpty)
+            .toSet();
+        final currentStudentIds = students
+            .map((s) => s.id)
+            .where((id) => id.isNotEmpty)
+            .toSet();
+        if (variantStudentIds.length != currentStudentIds.length ||
+            !variantStudentIds.containsAll(currentStudentIds)) {
+          needsRegeneration = true;
+        }
+      }
+      if (needsRegeneration && questions.isNotEmpty) {
         variants = const ExamRandomizerService().generateVariants(
           examId: prova.id,
           questions: questions,

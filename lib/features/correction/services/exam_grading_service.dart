@@ -2,6 +2,9 @@ import '../../exams/models/exam_variant.dart';
 import '../data/submission_repository.dart';
 import 'omr_image_service.dart';
 
+/// Alias para item de resposta corrigida com mapeamento canônico.
+typedef GradedAnswerItem = SubmissionQuestionAnswer;
+
 /// Status detalhado da avaliação de uma questão individual (N3-05).
 enum GradingQuestionStatus {
   correct,
@@ -71,7 +74,7 @@ class ExamGradingService {
   }
 
   /// Corrige um mapa de alternativas marcadas por questão (`questionNumber -> List<String>`)
-  /// contra o gabarito oficial de [variant].
+  /// contra o gabarito oficial de [variant], preservando o mapeamento canônico original.
   ExamGradingResult gradeFromMarkedLetters({
     required ExamVariant variant,
     required Map<int, List<String>> markedLettersByQuestion,
@@ -91,7 +94,9 @@ class ExamGradingService {
 
     for (final q in variant.questions) {
       final qNum = q.questionNumber;
+      final originalQNum = q.originalQuestionOrder + 1;
       final expectedCorrect = variant.answerKey[qNum] ?? q.correctLetter;
+      final canonicalCorrect = q.toCanonicalLetter(expectedCorrect);
       final markedList = markedLettersByQuestion[qNum] ?? const <String>[];
       final weight = q.weight > 0 ? q.weight : 1.0;
       totalWeight += weight;
@@ -106,8 +111,11 @@ class ExamGradingService {
         answers.add(
           SubmissionQuestionAnswer(
             questionNumber: qNum,
+            originalQuestionNumber: originalQNum,
             marked: 'ANULADA',
             correct: expectedCorrect,
+            canonicalSelected: 'ANULADA',
+            canonicalCorrect: canonicalCorrect,
             isCorrect: true,
           ),
         );
@@ -120,8 +128,11 @@ class ExamGradingService {
         answers.add(
           SubmissionQuestionAnswer(
             questionNumber: qNum,
+            originalQuestionNumber: originalQNum,
             marked: 'EM BRANCO',
             correct: expectedCorrect,
+            canonicalSelected: 'EM BRANCO',
+            canonicalCorrect: canonicalCorrect,
             isCorrect: false,
           ),
         );
@@ -131,11 +142,17 @@ class ExamGradingService {
       if (markedList.length > 1) {
         invalidMultipleCount++;
         statuses[qNum] = GradingQuestionStatus.multipleMarks;
+        final canonicalLetters = markedList
+            .map((l) => q.toCanonicalLetter(l))
+            .toList();
         answers.add(
           SubmissionQuestionAnswer(
             questionNumber: qNum,
+            originalQuestionNumber: originalQNum,
             marked: 'INVÁLIDA (${markedList.join('+')})',
             correct: expectedCorrect,
+            canonicalSelected: 'INVÁLIDA (${canonicalLetters.join('+')})',
+            canonicalCorrect: canonicalCorrect,
             isCorrect: false,
           ),
         );
@@ -143,6 +160,7 @@ class ExamGradingService {
       }
 
       final singleMarked = markedList.single.trim().toUpperCase();
+      final canonicalMarked = q.toCanonicalLetter(singleMarked);
       final isCorrect = singleMarked == expectedCorrect.trim().toUpperCase();
 
       if (isCorrect) {
@@ -157,8 +175,11 @@ class ExamGradingService {
       answers.add(
         SubmissionQuestionAnswer(
           questionNumber: qNum,
+          originalQuestionNumber: originalQNum,
           marked: singleMarked,
           correct: expectedCorrect,
+          canonicalSelected: canonicalMarked,
+          canonicalCorrect: canonicalCorrect,
           isCorrect: isCorrect,
         ),
       );

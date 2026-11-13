@@ -41,6 +41,7 @@ class VariantAlternative {
     required this.originalAlternativeId,
     required this.text,
     required this.isCorrect,
+    this.originalLetter,
   });
 
   final String letter;
@@ -48,12 +49,22 @@ class VariantAlternative {
   final String text;
   final bool isCorrect;
 
+  /// Letra canônica original na questão mestre antes do embaralhamento ('A'..'E').
+  final String? originalLetter;
+
+  String get effectiveOriginalLetter =>
+      (originalLetter != null && originalLetter!.isNotEmpty)
+          ? originalLetter!
+          : letter;
+
   factory VariantAlternative.fromMap(Map<String, dynamic> map) {
+    final letter = map['letter'] as String? ?? 'A';
     return VariantAlternative(
-      letter: map['letter'] as String? ?? 'A',
+      letter: letter,
       originalAlternativeId: map['originalAlternativeId'] as String? ?? '',
       text: map['text'] as String? ?? '',
       isCorrect: map['isCorrect'] as bool? ?? false,
+      originalLetter: map['originalLetter'] as String? ?? letter,
     );
   }
 
@@ -63,6 +74,7 @@ class VariantAlternative {
       'originalAlternativeId': originalAlternativeId,
       'text': text,
       'isCorrect': isCorrect,
+      'originalLetter': effectiveOriginalLetter,
     };
   }
 }
@@ -88,6 +100,31 @@ class VariantQuestionMapping {
   final String correctLetter;
   final bool annulled;
   final double weight;
+
+  /// Número da questão na ordem canônica original (1..N).
+  int get originalQuestionNumber => originalQuestionOrder + 1;
+
+  /// Letra correta na ordem canônica original ('A'..'E').
+  String get canonicalCorrectLetter {
+    for (final alt in alternatives) {
+      if (alt.letter.toUpperCase() == correctLetter.toUpperCase() ||
+          alt.isCorrect) {
+        return alt.effectiveOriginalLetter;
+      }
+    }
+    return correctLetter;
+  }
+
+  /// Converte uma letra marcada na variante para a letra correspondente na questão canônica original.
+  String toCanonicalLetter(String markedLetter) {
+    final normalized = markedLetter.trim().toUpperCase();
+    for (final alt in alternatives) {
+      if (alt.letter.toUpperCase() == normalized) {
+        return alt.effectiveOriginalLetter;
+      }
+    }
+    return normalized;
+  }
 
   factory VariantQuestionMapping.fromMap(Map<String, dynamic> map) {
     final rawAlts = map['alternatives'] as List<dynamic>? ?? const [];
@@ -132,6 +169,7 @@ class ExamVariant {
     required this.answerKey,
     this.studentId,
     this.studentName,
+    this.studentMatricula,
     this.classId,
     this.className,
   });
@@ -147,6 +185,7 @@ class ExamVariant {
 
   final String? studentId;
   final String? studentName;
+  final String? studentMatricula;
   final String? classId;
   final String? className;
 
@@ -155,6 +194,34 @@ class ExamVariant {
         variantId: id,
         studentId: studentId,
       ).encode();
+
+  ExamVariant copyWith({
+    String? id,
+    String? examId,
+    String? code,
+    String? label,
+    List<VariantQuestionMapping>? questions,
+    Map<int, String>? answerKey,
+    String? studentId,
+    String? studentName,
+    String? studentMatricula,
+    String? classId,
+    String? className,
+  }) {
+    return ExamVariant(
+      id: id ?? this.id,
+      examId: examId ?? this.examId,
+      code: code ?? this.code,
+      label: label ?? this.label,
+      questions: questions ?? this.questions,
+      answerKey: answerKey ?? this.answerKey,
+      studentId: studentId ?? this.studentId,
+      studentName: studentName ?? this.studentName,
+      studentMatricula: studentMatricula ?? this.studentMatricula,
+      classId: classId ?? this.classId,
+      className: className ?? this.className,
+    );
+  }
 
   factory ExamVariant.fromMap(String id, Map<String, dynamic> map) {
     final rawQuestions = map['questions'] as List<dynamic>? ?? const [];
@@ -188,6 +255,7 @@ class ExamVariant {
       answerKey: answerKey,
       studentId: map['studentId'] as String?,
       studentName: map['studentName'] as String?,
+      studentMatricula: map['studentMatricula'] as String?,
       classId: map['classId'] as String?,
       className: map['className'] as String?,
     );
@@ -204,6 +272,7 @@ class ExamVariant {
       },
       if (studentId != null) 'studentId': studentId,
       if (studentName != null) 'studentName': studentName,
+      if (studentMatricula != null) 'studentMatricula': studentMatricula,
       if (classId != null) 'classId': classId,
       if (className != null) 'className': className,
     };

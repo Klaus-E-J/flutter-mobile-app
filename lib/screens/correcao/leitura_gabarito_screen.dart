@@ -73,6 +73,17 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
   late final List<ResultadoAluno> _resultadosCapturados;
   late List<ExamVariant> _availableVariants;
   late ExamVariant _currentVariant;
+  final Set<int> _annulledOriginalQuestions = <int>{};
+
+  Set<int> get _currentVariantAnnulledQuestions {
+    final set = <int>{};
+    for (final q in _currentVariant.questions) {
+      if (_annulledOriginalQuestions.contains(q.originalQuestionNumber)) {
+        set.add(q.questionNumber);
+      }
+    }
+    return set;
+  }
 
   CameraController? _cameraController;
   bool _useLiveCamera = false;
@@ -163,14 +174,20 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
   }
 
   StudentRecord get _estudanteAtual {
-    // Se a variante já está vinculada a um aluno específico (prova individual)
+    // Se a variante (ou folha nominal OMR) já está vinculada a um aluno específico
     if (_currentVariant.studentId != null &&
-        widget.students != null &&
-        widget.students!.isNotEmpty) {
-      final matched = widget.students!
-          .where((s) => s.id == _currentVariant.studentId)
-          .toList();
-      if (matched.isNotEmpty) return matched.first;
+        _currentVariant.studentId!.isNotEmpty) {
+      if (widget.students != null && widget.students!.isNotEmpty) {
+        final matched = widget.students!
+            .where((s) => s.id == _currentVariant.studentId)
+            .toList();
+        if (matched.isNotEmpty) return matched.first;
+      }
+      return StudentRecord(
+        id: _currentVariant.studentId!,
+        name: _currentVariant.studentName ?? _currentVariant.studentId!,
+        matricula: _currentVariant.studentMatricula ?? '',
+      );
     }
 
     if (widget.students != null && widget.students!.isNotEmpty) {
@@ -353,13 +370,30 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
   }
 
   Future<void> _processarResultadoScan(OmrSheetScanResult scanResult) async {
-    // Se o QR Code foi lido na imagem, sincroniza automaticamente a variante!
+    // Se o QR Code foi lido na imagem, sincroniza automaticamente a variante e o aluno (folhas nominais)!
     if (scanResult.qrPayload != null) {
+      final qr = scanResult.qrPayload!;
       final matched = _availableVariants
-          .where((v) => v.id == scanResult.qrPayload!.variantId)
+          .where((v) => v.id == qr.variantId)
           .toList();
-      if (matched.isNotEmpty) {
-        _currentVariant = matched.first;
+      ExamVariant baseVariant =
+          matched.isNotEmpty ? matched.first : _currentVariant;
+
+      if (qr.studentId != null && qr.studentId!.isNotEmpty) {
+        final matchedStudent = (widget.students ?? const <StudentRecord>[])
+            .where((s) => s.id == qr.studentId)
+            .toList();
+        _currentVariant = baseVariant.copyWith(
+          studentId: qr.studentId,
+          studentName: matchedStudent.isNotEmpty
+              ? matchedStudent.first.name
+              : baseVariant.studentName,
+          studentMatricula: matchedStudent.isNotEmpty
+              ? matchedStudent.first.matricula
+              : baseVariant.studentMatricula,
+        );
+      } else {
+        _currentVariant = baseVariant;
       }
     }
 
@@ -374,6 +408,10 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
         markedLettersByQuestion: initialMarks,
       );
       return;
+    }
+
+    if (mounted) {
+      setState(() => _status = LeituraStatus.aguardando);
     }
 
     final confirmed = await _abrirModalRevisaoOmr(
@@ -404,6 +442,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
     final gradeResult = _gradingService.gradeFromMarkedLetters(
       variant: _currentVariant,
       markedLettersByQuestion: markedLettersByQuestion,
+      annulledQuestions: _currentVariantAnnulledQuestions,
     );
 
     _provasLidas++;
@@ -421,6 +460,16 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
         answers: gradeResult.answers,
       ),
     );
+
+    // Restaura a variante compartilhada base caso a folha anterior tenha sido nominal
+    if (!widget.prova.provaIndividual) {
+      final base = _availableVariants
+          .where((v) => v.id == _currentVariant.id)
+          .toList();
+      if (base.isNotEmpty) {
+        _currentVariant = base.first;
+      }
+    }
 
     final concluiuTodasAsFolhas = _limiteAtingido;
 
@@ -490,6 +539,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
             final previewGrade = _gradingService.gradeFromMarkedLetters(
               variant: _currentVariant,
               markedLettersByQuestion: editableMarks,
+              annulledQuestions: _currentVariantAnnulledQuestions,
             );
             final theme = Theme.of(ctx);
             final colorScheme = theme.colorScheme;
@@ -567,6 +617,8 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                             final expected =
                                 _currentVariant.answerKey[qNum] ?? q.correctLetter;
                             final marked = editableMarks[qNum] ?? <String>[];
+                            final isAnnulled = _annulledOriginalQuestions
+                                .contains(q.originalQuestionNumber);
 
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -585,10 +637,14 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                                           ),
                                         ),
                                         Text(
-                                          'Gab: $expected',
+                                          isAnnulled
+                                              ? 'Anulada'
+                                              : 'Gab: $expected',
                                           style: theme.textTheme.labelSmall
                                               ?.copyWith(
-                                            color: colorScheme.onSurfaceVariant,
+                                            color: isAnnulled
+                                                ? colorScheme.primary
+                                                : colorScheme.onSurfaceVariant,
                                           ),
                                         ),
                                       ],
@@ -597,35 +653,54 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                                   Expanded(
                                     child: Wrap(
                                       spacing: 6,
-                                      children: (q.alternatives.isNotEmpty
-                                              ? q.alternatives
-                                                  .map((a) => a.letter)
-                                                  .toList()
-                                              : OmrLayoutSpec.letters)
-                                          .map((letter) {
-                                        final isSelected =
-                                            marked.contains(letter);
-                                        return FilterChip(
-                                          label: Text(letter),
-                                          selected: isSelected,
+                                      runSpacing: 4,
+                                      children: [
+                                        ...(q.alternatives.isNotEmpty
+                                                ? q.alternatives
+                                                    .map((a) => a.letter)
+                                                    .toList()
+                                                : OmrLayoutSpec.letters)
+                                            .map((letter) {
+                                          final isSelected =
+                                              marked.contains(letter);
+                                          return FilterChip(
+                                            label: Text(letter),
+                                            selected: isSelected,
+                                            visualDensity: VisualDensity.compact,
+                                            onSelected: (sel) {
+                                              setModalState(() {
+                                                final list = List<String>.from(
+                                                  editableMarks[qNum] ?? [],
+                                                );
+                                                if (sel) {
+                                                  list
+                                                    ..clear()
+                                                    ..add(letter);
+                                                } else {
+                                                  list.remove(letter);
+                                                }
+                                                editableMarks[qNum] = list;
+                                              });
+                                            },
+                                          );
+                                        }),
+                                        FilterChip(
+                                          label: const Text('Anular'),
+                                          selected: isAnnulled,
                                           visualDensity: VisualDensity.compact,
                                           onSelected: (sel) {
                                             setModalState(() {
-                                              final list = List<String>.from(
-                                                editableMarks[qNum] ?? [],
-                                              );
                                               if (sel) {
-                                                list
-                                                  ..clear()
-                                                  ..add(letter);
+                                                _annulledOriginalQuestions
+                                                    .add(q.originalQuestionNumber);
                                               } else {
-                                                list.remove(letter);
+                                                _annulledOriginalQuestions
+                                                    .remove(q.originalQuestionNumber);
                                               }
-                                              editableMarks[qNum] = list;
                                             });
                                           },
-                                        );
-                                      }).toList(),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
@@ -836,7 +911,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                         ? 'Processando OMR...'
                         : (_useLiveCamera
                             ? 'Capturar foto da câmera (OMR)'
-                            : 'Escanear Folha OMR (${_currentVariant.code})'),
+                            : 'Simular Leitura OMR (${_currentVariant.code})'),
                 icon: _limiteAtingido || _status == LeituraStatus.processando
                     ? null
                     : Icons.document_scanner_outlined,

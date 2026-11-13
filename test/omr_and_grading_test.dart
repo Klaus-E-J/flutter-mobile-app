@@ -119,6 +119,67 @@ void main() {
       expect(result.answers[4].marked, equals('ANULADA'));
       expect(result.answers[4].isCorrect, isTrue);
     });
+
+    test('records originalQuestionNumber, canonicalSelected, and canonicalCorrect when variant is shuffled', () {
+      final masterQuestions = [
+        Questao(
+          id: 'q1',
+          enunciado: 'Questão 1',
+          alternativas: [
+            Alternativa(id: 'q1_a', texto: 'A1', correta: true), // Master A
+            Alternativa(id: 'q1_b', texto: 'B1'),
+            Alternativa(id: 'q1_c', texto: 'C1'),
+            Alternativa(id: 'q1_d', texto: 'D1'),
+            Alternativa(id: 'q1_e', texto: 'E1'),
+          ],
+        ),
+        Questao(
+          id: 'q2',
+          enunciado: 'Questão 2',
+          alternativas: [
+            Alternativa(id: 'q2_a', texto: 'A2'),
+            Alternativa(id: 'q2_b', texto: 'B2'),
+            Alternativa(id: 'q2_c', texto: 'C2'),
+            Alternativa(id: 'q2_d', texto: 'D2'),
+            Alternativa(id: 'q2_e', texto: 'E2', correta: true), // Master E
+          ],
+        ),
+      ];
+
+      final shuffledVariant = randomizer
+          .generateVariants(
+            examId: 'exam_shuffled_grade',
+            questions: masterQuestions,
+            sameExamForEveryone: true,
+            variantCount: 1,
+            seed: 42,
+          )
+          .single;
+
+      // Mark the correct letter on the variant for each question
+      final marks = <int, List<String>>{
+        for (final vq in shuffledVariant.questions)
+          vq.questionNumber: [vq.correctLetter],
+      };
+
+      final graded = gradingService.gradeFromMarkedLetters(
+        variant: shuffledVariant,
+        markedLettersByQuestion: marks,
+      );
+
+      expect(graded.correctCount, 2);
+      for (final ans in graded.answers) {
+        if (ans.originalQuestionNumber == 1) {
+          expect(ans.canonicalCorrect, 'A');
+          expect(ans.canonicalSelected, 'A');
+        } else if (ans.originalQuestionNumber == 2) {
+          expect(ans.canonicalCorrect, 'E');
+          expect(ans.canonicalSelected, 'E');
+        } else {
+          fail('Unexpected originalQuestionNumber: ${ans.originalQuestionNumber}');
+        }
+      }
+    });
   });
 
   group('OmrImageService Computer Vision Tests (N3-04)', () {

@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../core/widgets/app_card.dart';
 import '../../screens/correcao/models/correcao_models.dart';
+import '../correction/data/submission_repository.dart';
 import 'student_result_screen.dart';
 
 /// FE-10 — Resultados de uma prova.
 ///
 /// Exibe os alunos da prova.
 /// Ao clicar em um aluno, abre o resultado individual.
-class ExamResultsScreen extends StatelessWidget {
+class ExamResultsScreen extends StatefulWidget {
   const ExamResultsScreen({
     super.key,
     required this.prova,
@@ -21,28 +22,139 @@ class ExamResultsScreen extends StatelessWidget {
   final int totalErros;
 
   @override
+  State<ExamResultsScreen> createState() => _ExamResultsScreenState();
+}
+
+class _ExamResultsScreenState extends State<ExamResultsScreen> {
+  final SubmissionRepository _submissionRepository = SubmissionRepository();
+  late List<ResultadoAluno> _resultados;
+
+  @override
+  void initState() {
+    super.initState();
+    _resultados = List<ResultadoAluno>.from(widget.resultados);
+  }
+
+  Future<void> _confirmDeleteStudentResult(ResultadoAluno resultado) async {
+    final submissionId = resultado.submissionId;
+    if (submissionId == null || submissionId.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir correção do aluno?'),
+        content: Text(
+          'Tem certeza que deseja excluir o resultado de "${resultado.nomeAluno}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+
+    try {
+      await _submissionRepository.deleteSubmission(submissionId);
+      if (!mounted) return;
+      setState(() {
+        _resultados.removeWhere((r) => r.submissionId == submissionId);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Resultado excluído com sucesso.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível excluir o resultado: $error')),
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteAllResults() async {
+    if (_resultados.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir todos os resultados?'),
+        content: Text(
+          'Tem certeza que deseja excluir todas as ${_resultados.length} correções de "${widget.prova.titulo}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir tudo'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+
+    try {
+      await _submissionRepository.deleteSubmissionsByExam(
+        widget.prova.id,
+        classId: widget.prova.classId?.isNotEmpty == true
+            ? widget.prova.classId
+            : null,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível excluir os resultados: $error')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final media = resultados.isEmpty
+    final media = _resultados.isEmpty
         ? 0.0
-        : resultados.fold<double>(
+        : _resultados.fold<double>(
                 0,
                 (sum, resultado) => sum + resultado.percentual,
               ) /
-              resultados.length;
+              _resultados.length;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Resultados da prova'),
+        actions: [
+          if (_resultados.any((r) => r.submissionId != null))
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_outlined),
+              tooltip: 'Excluir todos os resultados desta prova',
+              onPressed: _confirmDeleteAllResults,
+            ),
+        ],
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
             Text(
-              prova.titulo,
+              widget.prova.titulo,
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -50,7 +162,7 @@ class ExamResultsScreen extends StatelessWidget {
             const SizedBox(height: 4),
 
             Text(
-              '${prova.turma} · ${prova.disciplina}',
+              '${widget.prova.turma} · ${widget.prova.disciplina}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -63,7 +175,7 @@ class ExamResultsScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _ResumoItem(
-                      valor: '${resultados.length}',
+                      valor: '${_resultados.length}',
                       titulo: 'Alunos',
                     ),
                   ),
@@ -75,7 +187,7 @@ class ExamResultsScreen extends StatelessWidget {
                   ),
                   Expanded(
                     child: _ResumoItem(
-                      valor: '${prova.totalQuestoes}',
+                      valor: '${widget.prova.totalQuestoes}',
                       titulo: 'Questões',
                     ),
                   ),
@@ -103,7 +215,7 @@ class ExamResultsScreen extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            if (resultados.isEmpty)
+            if (_resultados.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
                 child: Center(
@@ -116,19 +228,29 @@ class ExamResultsScreen extends StatelessWidget {
                 ),
               )
             else
-              for (final resultado in resultados) ...[
+              for (final resultado in _resultados) ...[
                 _AlunoResultadoCard(
                   resultado: resultado,
-                  onTap: () {
-                    Navigator.push(
+                  onDelete: resultado.submissionId != null
+                      ? () => _confirmDeleteStudentResult(resultado)
+                      : null,
+                  onTap: () async {
+                    final deleted = await Navigator.push<bool>(
                       context,
-                      MaterialPageRoute<void>(
+                      MaterialPageRoute<bool>(
                         builder: (_) => StudentResultScreen(
-                          prova: prova,
+                          prova: widget.prova,
                           resultado: resultado,
                         ),
                       ),
                     );
+                    if (deleted == true && mounted) {
+                      setState(() {
+                        _resultados.removeWhere(
+                          (r) => r.submissionId == resultado.submissionId,
+                        );
+                      });
+                    }
                   },
                 ),
                 const SizedBox(height: 10),
@@ -177,10 +299,12 @@ class _AlunoResultadoCard extends StatelessWidget {
   const _AlunoResultadoCard({
     required this.resultado,
     required this.onTap,
+    this.onDelete,
   });
 
   final ResultadoAluno resultado;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -255,7 +379,16 @@ class _AlunoResultadoCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(width: 4),
+          if (onDelete != null)
+            IconButton(
+              icon: Icon(
+                Icons.delete_outline,
+                size: 20,
+                color: colorScheme.error,
+              ),
+              tooltip: 'Excluir resultado do aluno',
+              onPressed: onDelete,
+            ),
 
           Icon(
             Icons.chevron_right,

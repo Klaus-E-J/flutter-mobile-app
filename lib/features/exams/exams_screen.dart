@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import '../../screens/provas/prova_questoes_screen.dart';
 import 'data/exam_repository.dart';
 import 'exam_form_screen.dart';
+import 'exam_print_screen.dart';
 
 class ExamsScreen extends StatelessWidget {
   const ExamsScreen({super.key});
@@ -24,6 +26,72 @@ class ExamsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _openQuestions(BuildContext context, ExamRecord exam) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProvaQuestoesScreen(
+          examId: exam.id,
+          provaTitulo: exam.title,
+        ),
+      ),
+    );
+  }
+
+  void _openPrint(BuildContext context, ExamRecord exam) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExamPrintScreen(
+          examId: exam.id,
+          examTitle: exam.title,
+          classIds: exam.classIds,
+          classNames: exam.classNames,
+          sameExamForEveryone: exam.sameExamForEveryone,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteExam(BuildContext context, ExamRecord exam) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir prova?'),
+        content: Text(
+          'Tem certeza que deseja excluir a prova "${exam.title}", suas questões e variantes?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || confirmed != true) return;
+
+    try {
+      await _repository.deleteExam(exam.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Prova excluída com sucesso.')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível excluir a prova: $error')),
+      );
+    }
   }
 
   void _openCreateExam(BuildContext context) {
@@ -99,7 +167,63 @@ class ExamsScreen extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+                            PopupMenuButton<String>(
+                              tooltip: 'Opções da prova',
+                              onSelected: (value) {
+                                switch (value) {
+                                  case 'edit':
+                                    _openExam(context, exam);
+                                    break;
+                                  case 'questions':
+                                    _openQuestions(context, exam);
+                                    break;
+                                  case 'print':
+                                    _openPrint(context, exam);
+                                    break;
+                                  case 'delete':
+                                    _confirmDeleteExam(context, exam);
+                                    break;
+                                }
+                              },
+                              itemBuilder: (ctx) => const [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: ListTile(
+                                    leading: Icon(Icons.edit_outlined),
+                                    title: Text('Editar prova'),
+                                    contentPadding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'questions',
+                                  child: ListTile(
+                                    leading: Icon(Icons.quiz_outlined),
+                                    title: Text('Questões / Gabarito'),
+                                    contentPadding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'print',
+                                  child: ListTile(
+                                    leading: Icon(Icons.picture_as_pdf_outlined),
+                                    title: Text('Variantes e Impressão'),
+                                    contentPadding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: ListTile(
+                                    leading: Icon(Icons.delete_outline, color: Colors.red),
+                                    title: Text('Excluir prova', style: TextStyle(color: Colors.red)),
+                                    contentPadding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),

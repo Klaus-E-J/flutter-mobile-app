@@ -88,6 +88,102 @@ class ClassRepository {
     return reference.id;
   }
 
+  Future<void> updateClass({
+    required String classId,
+    required String name,
+    required String grade,
+  }) async {
+    final trimmedName = name.trim();
+    final trimmedGrade = grade.trim();
+    final classReference = _classes.doc(classId);
+
+    await classReference.update({
+      'name': trimmedName,
+      'grade': trimmedGrade,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    // Sincroniza o nome da turma nas provas vinculadas
+    final examsCol = FirebaseService.userCollection('exams');
+    final examsSnap = await examsCol.get();
+    final pendingUpdates =
+        <({DocumentReference<Map<String, dynamic>> ref, Map<String, dynamic> data})>[];
+
+    for (final doc in examsSnap.docs) {
+      final data = doc.data();
+      final primaryClassId = data['classId'] as String? ?? '';
+      final rawIds = data['classIds'];
+      final rawNames = data['classNames'];
+      final classIds = rawIds is List
+          ? rawIds.map((e) => e.toString()).toList()
+          : (primaryClassId.isNotEmpty ? <String>[primaryClassId] : <String>[]);
+      final classNames = rawNames is List
+          ? rawNames.map((e) => e.toString()).toList()
+          : <String>[];
+
+      final idx = classIds.indexOf(classId);
+      if (primaryClassId == classId || idx != -1) {
+        final updates = <String, dynamic>{
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        if (primaryClassId == classId) {
+          updates['className'] = trimmedName;
+        }
+        if (idx != -1 && idx < classNames.length) {
+          final updatedNames = List<String>.from(classNames);
+          updatedNames[idx] = trimmedName;
+          updates['classNames'] = updatedNames;
+          if (idx == 0) {
+            updates['className'] = trimmedName;
+          }
+        }
+        pendingUpdates.add((ref: doc.reference, data: updates));
+      }
+    }
+
+    // Sincroniza o nome da turma nas submissões vinculadas
+    final submissionsCol = FirebaseService.userCollection('submissions');
+    final subSnap = await submissionsCol.where('classId', isEqualTo: classId).get();
+    for (final subDoc in subSnap.docs) {
+      pendingUpdates.add((
+        ref: subDoc.reference,
+        data: <String, dynamic>{'className': trimmedName},
+      ));
+    }
+
+    const batchSize = 400;
+    for (var i = 0; i < pendingUpdates.length; i += batchSize) {
+      final end = (i + batchSize < pendingUpdates.length)
+          ? i + batchSize
+          : pendingUpdates.length;
+      final batch = FirebaseService.firestore.batch();
+      for (final item in pendingUpdates.sublist(i, end)) {
+        batch.update(item.ref, item.data);
+      }
+      await batch.commit();
+    }
+  }
+
+  Future<void> deleteClass(String classId) async {
+    final classReference = _classes.doc(classId);
+    final studentsSnapshot = await classReference.collection('students').get();
+
+    const batchSize = 400;
+    final studentDocs = studentsSnapshot.docs;
+    for (var i = 0; i < studentDocs.length; i += batchSize) {
+      final end = (i + batchSize < studentDocs.length)
+          ? i + batchSize
+          : studentDocs.length;
+      final batch = FirebaseService.firestore.batch();
+      for (final doc in studentDocs.sublist(i, end)) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+
+    await classReference.delete();
+  }
+
   Stream<List<StudentRecord>> watchStudents(String classId) => _classes
       .doc(classId)
       .collection('students')
@@ -127,6 +223,70 @@ class ClassRepository {
         'studentCount': ((classSnapshot.data()?['studentCount'] as num?)?.toInt() ?? 0) + 1,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+    });
+  }
+
+  Future<void> updateStudent({
+    required String classId,
+    required String studentId,
+    required String name,
+    String matricula = '',
+    String email = '',
+  }) async {
+    final trimmedName = name.trim();
+    final studentReference = _classes
+        .doc(classId)
+        .collection('students')
+        .doc(studentId);
+
+    await studentReference.update({
+      'name': trimmedName,
+      'matricula': matricula.trim(),
+      'email': email.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final submissionsCol = FirebaseService.userCollection('submissions');
+    final subSnap = await submissionsCol
+        .where('classId', isEqualTo: classId)
+        .where('studentId', isEqualTo: studentId)
+        .get();
+    const batchSize = 400;
+    final subDocs = subSnap.docs;
+    for (var i = 0; i < subDocs.length; i += batchSize) {
+      final end = (i + batchSize < subDocs.length)
+          ? i + batchSize
+          : subDocs.length;
+      final batch = FirebaseService.firestore.batch();
+      for (final doc in subDocs.sublist(i, end)) {
+        batch.update(doc.reference, {'studentName': trimmedName});
+      }
+      await batch.commit();
+    }
+  }
+
+  Future<void> deleteStudent({
+    required String classId,
+    required String studentId,
+  }) async {
+    final classReference = _classes.doc(classId);
+    final studentReference = classReference.collection('students').doc(studentId);
+
+    await FirebaseService.firestore.runTransaction((transaction) async {
+      final classSnapshot = await transaction.get(classReference);
+      final studentSnapshot = await transaction.get(studentReference);
+      if (!studentSnapshot.exists) return;
+
+      transaction.delete(studentReference);
+      if (classSnapshot.exists) {
+        final currentCount =
+            (classSnapshot.data()?['studentCount'] as num?)?.toInt() ?? 0;
+        final nextCount = currentCount > 0 ? currentCount - 1 : 0;
+        transaction.update(classReference, {
+          'studentCount': nextCount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
     });
   }
 

@@ -7,13 +7,14 @@ import '../../core/services/firebase_service.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_text_field.dart';
 import '../access/data/auth_repository.dart';
 import '../access/data/user_profile.dart';
 
 /// Tela de Configurações (FE-14).
 ///
 /// Apresenta dados reais do perfil do professor logado via Firebase Auth
-/// e Cloud Firestore, permitindo gerenciar o código de acesso e encerrar a sessão.
+/// e Cloud Firestore, permitindo gerenciar o código de acesso, editar perfil e encerrar a sessão.
 class ConfigScreen extends StatefulWidget {
   const ConfigScreen({super.key, this.authRepository});
 
@@ -44,7 +45,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
 
   Future<void> _loadProfile() async {
     try {
-      if (FirebaseService.isInitialized && FirebaseService.currentUser != null) {
+      if (widget.authRepository != null ||
+          (FirebaseService.isInitialized &&
+              FirebaseService.currentUser != null)) {
         final profile = await _authRepository.getCurrentProfile();
         if (mounted) {
           setState(() {
@@ -63,6 +66,55 @@ class _ConfigScreenState extends State<ConfigScreen> {
       setState(() {
         _isLoadingProfile = false;
       });
+    }
+  }
+
+  Future<void> _handleEditProfile() async {
+    final currentName = _userProfile?.name ??
+        FirebaseService.currentUser?.displayName ??
+        'Professor';
+    final currentSchool = _userProfile?.school ?? '';
+
+    final result = await showDialog<({String name, String school})>(
+      context: context,
+      builder: (_) => _EditProfileDialog(
+        initialName: currentName,
+        initialSchool: currentSchool,
+      ),
+    );
+
+    if (!mounted || result == null) return;
+
+    try {
+      final baseProfile = _userProfile ??
+          UserProfile(
+            uid: FirebaseService.currentUser?.uid ?? 'local_user',
+            name: result.name,
+            email: FirebaseService.currentUser?.email ?? '',
+            school: result.school,
+            accessCode: _accessCode,
+            isAnonymous: FirebaseService.currentUser?.isAnonymous ?? false,
+          );
+      final updated = baseProfile.copyWith(
+        name: result.name,
+        school: result.school,
+        updatedAt: DateTime.now(),
+      );
+      if (widget.authRepository != null ||
+          (FirebaseService.isInitialized &&
+              FirebaseService.currentUser != null)) {
+        await _authRepository.updateProfile(updated);
+      }
+      if (!mounted) return;
+      setState(() {
+        _userProfile = updated;
+      });
+      _showFeedback('Perfil atualizado com sucesso.', isSuccess: true);
+    } catch (e) {
+      _showFeedback(
+        'Não foi possível salvar o perfil: $e',
+        isSuccess: false,
+      );
     }
   }
 
@@ -335,6 +387,11 @@ class _ConfigScreenState extends State<ConfigScreen> {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Editar perfil',
+            onPressed: _handleEditProfile,
           ),
         ],
       ),
@@ -655,6 +712,92 @@ class _ConfigScreenState extends State<ConfigScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _EditProfileDialog extends StatefulWidget {
+  const _EditProfileDialog({
+    required this.initialName,
+    required this.initialSchool,
+  });
+
+  final String initialName;
+  final String initialSchool;
+
+  @override
+  State<_EditProfileDialog> createState() => _EditProfileDialogState();
+}
+
+class _EditProfileDialogState extends State<_EditProfileDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _schoolController;
+  String? _nameError;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName);
+    _schoolController = TextEditingController(text: widget.initialSchool);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _schoolController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _nameError = 'Informe o nome de exibição');
+      return;
+    }
+    Navigator.pop(
+      context,
+      (name: name, school: _schoolController.text.trim()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Editar perfil'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppTextField(
+              label: 'Nome de exibição',
+              hint: 'Ex.: Prof. Carlos Silva',
+              controller: _nameController,
+              errorText: _nameError,
+              onChanged: (_) {
+                if (_nameError != null) {
+                  setState(() => _nameError = null);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            AppTextField(
+              label: 'Escola / Instituição',
+              hint: 'Ex.: Colégio Estadual Central',
+              controller: _schoolController,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('Salvar'),
+        ),
+      ],
     );
   }
 }

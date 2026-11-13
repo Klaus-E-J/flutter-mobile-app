@@ -41,16 +41,32 @@ class QuestionStats {
     required this.questionNumber,
     required this.correctAlternative,
     required this.alternativePercentages,
+    this.optionCounts = const {},
+    this.mostMarkedOption = '',
+    this.mostMarkedPercentage = 0,
+    this.hitRate = 0,
   });
 
-  /// Número da questão, ex.: 7.
+  /// Número da questão canônica original, ex.: 7.
   final int questionNumber;
 
-  /// Letra da alternativa correta, ex.: "B".
+  /// Letra da alternativa correta canônica, ex.: "B".
   final String correctAlternative;
 
-  /// Mapa alternativa → percentual. Ex.: {"A": 10, "B": 42, "C": 33, "D": 15}.
+  /// Mapa alternativa → percentual. Ex.: {"A": 10, "B": 42, "C": 33, "D": 15, "E": 0}.
   final Map<String, int> alternativePercentages;
+
+  /// Contagem absoluta de marcações por alternativa ('A'..'E', 'Branco').
+  final Map<String, int> optionCounts;
+
+  /// Alternativa mais assinalada na questão (ex.: "B").
+  final String mostMarkedOption;
+
+  /// Percentual da alternativa mais assinalada (0–100).
+  final int mostMarkedPercentage;
+
+  /// Percentual de acerto da questão na turma (0–100).
+  final int hitRate;
 }
 
 /// Aluno disponível no seletor de estatísticas. O ID identifica o registro,

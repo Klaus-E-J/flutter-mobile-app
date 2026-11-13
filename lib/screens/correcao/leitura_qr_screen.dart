@@ -154,8 +154,23 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
     final matched = _availableVariants
         .where((v) => v.id == parsed.variantId)
         .toList();
-    final chosenVariant =
+    ExamVariant chosenVariant =
         matched.isNotEmpty ? matched.first : _selectedVariant;
+
+    if (parsed.studentId != null && parsed.studentId!.isNotEmpty) {
+      final matchedStudent = (widget.students ?? const <StudentRecord>[])
+          .where((s) => s.id == parsed.studentId)
+          .toList();
+      chosenVariant = chosenVariant.copyWith(
+        studentId: parsed.studentId,
+        studentName: matchedStudent.isNotEmpty
+            ? matchedStudent.first.name
+            : chosenVariant.studentName,
+        studentMatricula: matchedStudent.isNotEmpty
+            ? matchedStudent.first.matricula
+            : chosenVariant.studentMatricula,
+      );
+    }
 
     setState(() {
       _selectedVariant = chosenVariant;

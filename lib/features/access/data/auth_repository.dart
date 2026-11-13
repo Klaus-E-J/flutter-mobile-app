@@ -143,9 +143,12 @@ class AuthRepository {
     return await getOrCreateProfile(user);
   }
 
-  /// Atualiza os dados do perfil no Firestore.
+  /// Atualiza os dados do perfil no Firestore e no Firebase Auth.
   Future<void> updateProfile(UserProfile profile) async {
-    await _userDoc(profile.uid).update(profile.toMap());
+    try {
+      await _authService.currentUser?.updateDisplayName(profile.name.trim());
+    } catch (_) {}
+    await _userDoc(profile.uid).set(profile.toMap(), SetOptions(merge: true));
   }
 
   /// Envia e-mail de recuperação de senha.

@@ -40,8 +40,11 @@ class Questao {
   /// Número mínimo de alternativas que uma questão deve ter.
   static const int minimoAlternativas = 2;
 
-  /// Número máximo de alternativas que uma questão pode ter.
-  static const int maximoAlternativas = 6;
+  /// Número máximo de alternativas que uma questão pode ter (A–E na folha OMR).
+  static const int maximoAlternativas = 5;
+
+  /// Limite máximo de questões suportadas por uma folha de respostas OMR A4.
+  static const int maximoQuestoesOmr = 30;
 
   /// Retorna a alternativa marcada como correta, ou `null` se nenhuma
   /// alternativa estiver marcada.
@@ -65,6 +68,12 @@ class Questao {
     if (alternativas.length < minimoAlternativas) {
       erros.add(
         'A questão deve ter no mínimo $minimoAlternativas alternativas.',
+      );
+    }
+
+    if (alternativas.length > maximoAlternativas) {
+      erros.add(
+        'A questão pode ter no máximo $maximoAlternativas alternativas (A–E).',
       );
     }
 
@@ -111,13 +120,45 @@ class IdGenerator {
   }
 }
 
-/// Cria uma questão vazia com alternativas iniciais padrão (A e B).
-Questao criarQuestaoVazia() {
+/// Cria uma questão vazia com 5 alternativas iniciais padrão (A–E).
+Questao criarQuestaoVazia({int totalAlternativas = 5}) {
+  final count = totalAlternativas.clamp(
+    Questao.minimoAlternativas,
+    Questao.maximoAlternativas,
+  );
   return Questao(
     id: IdGenerator.generate(),
-    alternativas: [
-      Alternativa(id: IdGenerator.generate(), texto: ''),
-      Alternativa(id: IdGenerator.generate(), texto: ''),
-    ],
+    alternativas: List<Alternativa>.generate(
+      count,
+      (_) => Alternativa(id: IdGenerator.generate(), texto: ''),
+    ),
+  );
+}
+
+/// Cria uma questão pré-preenchida para o modo "Gabarito Rápido (Prova Externa)",
+/// onde o professor informa apenas a letra correta (A–E) de cada questão.
+Questao criarQuestaoGabaritoRapido({
+  required int numero,
+  required String letraCorreta,
+  int totalAlternativas = 5,
+}) {
+  const letras = ['A', 'B', 'C', 'D', 'E'];
+  final count = totalAlternativas.clamp(
+    Questao.minimoAlternativas,
+    Questao.maximoAlternativas,
+  );
+  final normalizada = letraCorreta.trim().toUpperCase();
+
+  return Questao(
+    id: IdGenerator.generate(),
+    enunciado: 'Questão ${numero.toString().padLeft(2, '0')} (Gabarito Externo)',
+    alternativas: List<Alternativa>.generate(count, (idx) {
+      final letra = letras[idx];
+      return Alternativa(
+        id: IdGenerator.generate(),
+        texto: 'Alternativa $letra',
+        correta: letra == normalizada,
+      );
+    }),
   );
 }

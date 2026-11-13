@@ -14,11 +14,13 @@ class ResultadoCorrecaoScreen extends StatefulWidget {
     required this.prova,
     required this.resultados,
     this.totalErros = 0,
+    this.onSaveSubmissions,
   });
 
   final ProvaCorrecao prova;
   final List<ResultadoAluno> resultados;
   final int totalErros;
+  final Future<void> Function(List<SubmissionRecord> records)? onSaveSubmissions;
 
   @override
   State<ResultadoCorrecaoScreen> createState() =>
@@ -27,56 +29,151 @@ class ResultadoCorrecaoScreen extends StatefulWidget {
 
 class _ResultadoCorrecaoScreenState extends State<ResultadoCorrecaoScreen> {
   bool _saving = false;
+  bool _saved = false;
+  Future<bool>? _ongoingSave;
 
-  Future<void> _concluir(BuildContext context) async {
-    if (_saving) return;
-    setState(() => _saving = true);
+  @override
+  void initState() {
+    super.initState();
+    if (widget.resultados.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _garantirSalvo(showFeedback: false, ignoreErrors: true);
+        }
+      });
+    } else {
+      _saved = true;
+    }
+  }
+
+  List<SubmissionRecord> _buildRecords() {
+    return List<SubmissionRecord>.generate(widget.resultados.length, (idx) {
+      final r = widget.resultados[idx];
+      final safeStudentKey = (r.studentId != null && r.studentId!.isNotEmpty)
+          ? r.studentId!
+          : 'idx_${idx + 1}_${r.nomeAluno.hashCode.abs()}';
+      final deterministicId = (r.submissionId != null && r.submissionId!.isNotEmpty)
+          ? r.submissionId!
+          : 'sub_${widget.prova.id}_$safeStudentKey';
+
+      return SubmissionRecord(
+        id: deterministicId,
+        examId: widget.prova.id,
+        examTitle: widget.prova.titulo,
+        classId: widget.prova.classId ?? '',
+        className: widget.prova.turma,
+        studentId: r.studentId ?? '',
+        studentName: r.nomeAluno,
+        score: r.acertos,
+        totalQuestions: r.totalQuestoes,
+        percentage: r.percentual,
+        variantId: r.variantId,
+        variantCode: r.variantCode,
+        blankCount: r.emBranco,
+        invalidCount: r.invalidas,
+        finalGrade: r.nota10,
+        answers: r.answers ?? [],
+      );
+    });
+  }
+
+  Future<bool> _garantirSalvo({
+    bool showFeedback = true,
+    bool ignoreErrors = false,
+  }) async {
+    if (_saved) return true;
+    if (_ongoingSave != null) return _ongoingSave!;
+
+    final future = _executarSalvamento(
+      showFeedback: showFeedback,
+      ignoreErrors: ignoreErrors,
+    );
+    _ongoingSave = future;
+    final ok = await future;
+    _ongoingSave = null;
+    return ok;
+  }
+
+  Future<bool> _executarSalvamento({
+    required bool showFeedback,
+    required bool ignoreErrors,
+  }) async {
+    if (_saved) return true;
+    if (mounted) setState(() => _saving = true);
 
     try {
-      final records = widget.resultados.map((r) {
-        return SubmissionRecord(
-          id: '',
-          examId: widget.prova.id,
-          examTitle: widget.prova.titulo,
-          classId: widget.prova.classId ?? '',
-          className: widget.prova.turma,
-          studentId: r.studentId ?? '',
-          studentName: r.nomeAluno,
-          score: r.acertos,
-          totalQuestions: r.totalQuestoes,
-          percentage: r.percentual,
-          variantId: r.variantId,
-          variantCode: r.variantCode,
-          blankCount: r.emBranco,
-          invalidCount: r.invalidas,
-          finalGrade: r.nota10,
-          answers: r.answers ?? [],
+      final records = _buildRecords();
+      if (widget.onSaveSubmissions != null) {
+        await widget.onSaveSubmissions!(records);
+      } else {
+        await SubmissionRepository().saveSubmissions(records);
+      }
+
+      if (!mounted) {
+        _saved = true;
+        return true;
+      }
+
+      setState(() {
+        _saved = true;
+        _saving = false;
+      });
+
+      if (showFeedback) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${records.length} resultado(s) gravado(s) no Firebase com sucesso!',
+            ),
+            backgroundColor: const Color(0xFF16A34A),
+          ),
         );
-      }).toList();
+      }
+      return true;
+    } catch (error) {
+      if (mounted) {
+        setState(() => _saving = false);
+        if (!ignoreErrors) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Não foi possível salvar os resultados: $error'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+      return false;
+    }
+  }
 
-      await SubmissionRepository().saveSubmissions(records);
-      if (!context.mounted) return;
+  Future<void> _abrirAtalho(BuildContext context, String routeName) async {
+    await _garantirSalvo(showFeedback: false, ignoreErrors: true);
+    if (!context.mounted) return;
+    await Navigator.of(context).pushNamed(routeName);
+  }
 
+  Future<void> _concluir(BuildContext context) async {
+    if (_saving) {
+      await _ongoingSave;
+    }
+    final jaEstavaSalvo = _saved;
+    final ok = await _garantirSalvo(showFeedback: !jaEstavaSalvo);
+    if (!context.mounted) return;
+
+    if (jaEstavaSalvo && ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${records.length} resultado(s) gravado(s) no Firebase com sucesso!',
+            '${widget.resultados.length} resultado(s) gravado(s) no Firebase com sucesso!',
           ),
           backgroundColor: const Color(0xFF16A34A),
         ),
       );
+    }
 
+    if (ok) {
       Navigator.of(context).popUntil(
         (route) => route.settings.name == '/dashboard' || route.isFirst,
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Não foi possível salvar os resultados: $error'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
       );
     }
   }
@@ -171,8 +268,9 @@ class _ResultadoCorrecaoScreenState extends State<ResultadoCorrecaoScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () =>
-                            Navigator.of(context).pushNamed('/statistics'),
+                        onPressed: _saving
+                            ? null
+                            : () => _abrirAtalho(context, '/statistics'),
                         icon: const Icon(Icons.bar_chart_outlined),
                         label: const Text('Estatísticas'),
                       ),
@@ -180,8 +278,9 @@ class _ResultadoCorrecaoScreenState extends State<ResultadoCorrecaoScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () =>
-                            Navigator.of(context).pushNamed('/export'),
+                        onPressed: _saving
+                            ? null
+                            : () => _abrirAtalho(context, '/export'),
                         icon: const Icon(Icons.upload_outlined),
                         label: const Text('Exportar'),
                       ),

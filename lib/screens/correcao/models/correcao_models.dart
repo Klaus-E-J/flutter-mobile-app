@@ -36,6 +36,7 @@ class ResultadoAluno {
     required this.acertos,
     required this.totalQuestoes,
     this.erro = false,
+    this.submissionId,
     this.studentId,
     this.variantId = '',
     this.variantCode = 'A',
@@ -49,6 +50,7 @@ class ResultadoAluno {
   final int acertos;
   final int totalQuestoes;
   final bool erro;
+  final String? submissionId;
   final String? studentId;
   final String variantId;
   final String variantCode;

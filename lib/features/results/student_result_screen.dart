@@ -23,6 +23,46 @@ class StudentResultScreen extends StatelessWidget {
     return resultado.answers ?? const <SubmissionQuestionAnswer>[];
   }
 
+  Future<void> _confirmDelete(BuildContext context) async {
+    final submissionId = resultado.submissionId;
+    if (submissionId == null || submissionId.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir correção?'),
+        content: Text(
+          'Tem certeza que deseja excluir o resultado de "${resultado.nomeAluno}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || confirmed != true) return;
+
+    try {
+      await SubmissionRepository().deleteSubmission(submissionId);
+      if (!context.mounted) return;
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível excluir a correção: $error')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -34,6 +74,15 @@ class StudentResultScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Resultado do aluno'),
+        actions: [
+          if (resultado.submissionId != null &&
+              resultado.submissionId!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Excluir resultado do aluno',
+              onPressed: () => _confirmDelete(context),
+            ),
+        ],
       ),
       body: SafeArea(
         child: ListView(
@@ -241,6 +290,10 @@ class _QuestaoResultadoCard extends StatelessWidget {
         ? Colors.green.shade700
         : theme.colorScheme.error;
 
+    final origNum = questao.originalQuestionNumber;
+    final hasDifferentOriginal =
+        origNum != null && origNum != questao.questionNumber;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
@@ -266,7 +319,9 @@ class _QuestaoResultadoCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Questão ${questao.questionNumber}',
+              hasDifferentOriginal
+                  ? 'Questão ${questao.questionNumber} (Original Q$origNum)'
+                  : 'Questão ${questao.questionNumber}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),

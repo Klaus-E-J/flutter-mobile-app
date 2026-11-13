@@ -178,27 +178,101 @@ class ResultExportService {
       ['Menor Nota (0-10)', minGrade.toStringAsFixed(2)],
       ['Taxa de Aprovação (>= 6.0)', '${approvalRate.toStringAsFixed(1)}%'],
       [],
-      ['Questão', 'Total Avaliado', 'Acertos', 'Taxa de Acerto (%)'],
+      [
+        'Questão',
+        'Total Avaliado',
+        'Acertos',
+        'Taxa de Acerto (%)',
+        'Gabarito',
+        'Mais Marcada',
+        '% A',
+        '% B',
+        '% C',
+        '% D',
+        '% E',
+        '% Branco',
+      ],
     ];
 
-    final maxQ = submissions.fold<int>(
-      0,
-      (prev, s) => max(prev, max(s.totalQuestions, s.answers.length)),
-    );
+    int maxQ = 0;
+    for (final s in submissions) {
+      maxQ = max(maxQ, max(s.totalQuestions, s.answers.length));
+      for (final a in s.answers) {
+        maxQ = max(maxQ, a.canonicalQuestionNumber);
+      }
+    }
+
+    const letters = ['A', 'B', 'C', 'D', 'E'];
 
     for (var qNum = 1; qNum <= maxQ; qNum++) {
       final qAnswers = submissions
           .expand((s) => s.answers)
-          .where((a) => a.questionNumber == qNum)
+          .where((a) => a.canonicalQuestionNumber == qNum)
           .toList();
       if (qAnswers.isEmpty) continue;
+
+      final totalAns = qAnswers.length;
       final hits = qAnswers.where((a) => a.isCorrect).length;
-      final rate = (hits / qAnswers.length) * 100.0;
+      final rate = (hits / totalAns) * 100.0;
+
+      String canonicalKey = 'A';
+      for (final a in qAnswers) {
+        final corr = a.effectiveCanonicalCorrect.trim().toUpperCase();
+        if (corr.isNotEmpty) {
+          canonicalKey = corr;
+          break;
+        }
+      }
+
+      final counts = <String, int>{
+        for (final l in letters) l: 0,
+        'Branco': 0,
+      };
+
+      for (final a in qAnswers) {
+        final sel = a.effectiveCanonicalSelected.trim().toUpperCase();
+        if (sel.isEmpty || sel == 'EM BRANCO' || sel == 'BRANCO') {
+          counts['Branco'] = (counts['Branco'] ?? 0) + 1;
+        } else if (letters.contains(sel)) {
+          counts[sel] = (counts[sel] ?? 0) + 1;
+        }
+      }
+
+      var mostMarked = 'A';
+      var mostCount = -1;
+      for (final l in letters) {
+        final c = counts[l] ?? 0;
+        if (c > mostCount) {
+          mostCount = c;
+          mostMarked = l;
+        }
+      }
+      if (mostCount <= 0 && (counts['Branco'] ?? 0) > 0) {
+        mostMarked = 'Branco';
+        mostCount = counts['Branco']!;
+      }
+      final mostPct =
+          totalAns > 0 && mostCount > 0 ? ((mostCount / totalAns) * 100.0) : 0.0;
+
+      String pctOf(String key) {
+        final c = counts[key] ?? 0;
+        final p = totalAns > 0 ? (c / totalAns) * 100.0 : 0.0;
+        return '${p.toStringAsFixed(0)}%';
+      }
+
       rows.add([
         'Questão $qNum',
-        qAnswers.length.toString(),
+        totalAns.toString(),
         hits.toString(),
         rate.toStringAsFixed(1),
+        canonicalKey,
+        '$mostMarked (${mostPct.toStringAsFixed(0)}%)',
+        pctOf('A'),
+        pctOf('B'),
+        pctOf('C'),
+        pctOf('D'),
+        pctOf('E'),
+        pctOf('Branco'),
       ]);
     }
 
@@ -206,10 +280,13 @@ class ResultExportService {
   }
 
   List<List<String>> _buildAnswerMatrixRows(List<SubmissionRecord> submissions) {
-    final maxQ = submissions.fold<int>(
-      0,
-      (prev, s) => max(prev, max(s.totalQuestions, s.answers.length)),
-    );
+    int maxQ = 0;
+    for (final s in submissions) {
+      maxQ = max(maxQ, max(s.totalQuestions, s.answers.length));
+      for (final a in s.answers) {
+        maxQ = max(maxQ, a.canonicalQuestionNumber);
+      }
+    }
 
     final header = <String>[
       'Turma',
@@ -226,7 +303,9 @@ class ResultExportService {
     final rows = <List<String>>[header];
 
     for (final sub in submissions) {
-      final byQ = {for (final a in sub.answers) a.questionNumber: a};
+      final byCanonicalQ = {
+        for (final a in sub.answers) a.canonicalQuestionNumber: a,
+      };
       final row = <String>[
         sub.className,
         sub.examTitle,
@@ -234,13 +313,13 @@ class ResultExportService {
         sub.variantCode,
       ];
       for (var q = 1; q <= maxQ; q++) {
-        final ans = byQ[q];
+        final ans = byCanonicalQ[q];
         if (ans == null) {
           row.addAll(const ['-', '-', '-']);
         } else {
           row.addAll([
-            ans.marked,
-            ans.correct,
+            ans.effectiveCanonicalSelected,
+            ans.effectiveCanonicalCorrect,
             ans.isCorrect ? 'ACERTO' : 'ERRO',
           ]);
         }

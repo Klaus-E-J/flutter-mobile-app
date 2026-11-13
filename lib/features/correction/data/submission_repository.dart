@@ -9,6 +9,9 @@ class SubmissionQuestionAnswer {
     required this.marked,
     required this.correct,
     required this.isCorrect,
+    this.originalQuestionNumber,
+    this.canonicalSelected,
+    this.canonicalCorrect,
   });
 
   final int questionNumber;
@@ -16,12 +19,45 @@ class SubmissionQuestionAnswer {
   final String correct;
   final bool isCorrect;
 
+  /// Número da questão na ordem canônica original da prova mestre (1..N).
+  final int? originalQuestionNumber;
+
+  /// Alternativa assinalada pelo aluno convertida para a ordem canônica original ('A'..'E').
+  final String? canonicalSelected;
+
+  /// Alternativa correta na ordem canônica original ('A'..'E').
+  final String? canonicalCorrect;
+
+  /// Retorna o número canônico da questão (ou [questionNumber] caso não especificado).
+  int get canonicalQuestionNumber =>
+      (originalQuestionNumber != null && originalQuestionNumber! > 0)
+          ? originalQuestionNumber!
+          : questionNumber;
+
+  /// Retorna a alternativa marcada na ordem canônica (ou [marked] caso não especificado).
+  String get effectiveCanonicalSelected =>
+      (canonicalSelected != null && canonicalSelected!.isNotEmpty)
+          ? canonicalSelected!
+          : marked;
+
+  /// Retorna a alternativa correta na ordem canônica (ou [correct] caso não especificado).
+  String get effectiveCanonicalCorrect =>
+      (canonicalCorrect != null && canonicalCorrect!.isNotEmpty)
+          ? canonicalCorrect!
+          : correct;
+
   factory SubmissionQuestionAnswer.fromMap(Map<String, dynamic> map) {
+    final qNum = (map['questionNumber'] as num?)?.toInt() ?? 0;
+    final marked = map['marked'] as String? ?? '';
+    final correct = map['correct'] as String? ?? '';
     return SubmissionQuestionAnswer(
-      questionNumber: (map['questionNumber'] as num?)?.toInt() ?? 0,
-      marked: map['marked'] as String? ?? '',
-      correct: map['correct'] as String? ?? '',
+      questionNumber: qNum,
+      marked: marked,
+      correct: correct,
       isCorrect: map['isCorrect'] as bool? ?? false,
+      originalQuestionNumber: (map['originalQuestionNumber'] as num?)?.toInt(),
+      canonicalSelected: map['canonicalSelected'] as String?,
+      canonicalCorrect: map['canonicalCorrect'] as String?,
     );
   }
 
@@ -31,9 +67,16 @@ class SubmissionQuestionAnswer {
       'marked': marked,
       'correct': correct,
       'isCorrect': isCorrect,
+      if (originalQuestionNumber != null)
+        'originalQuestionNumber': originalQuestionNumber,
+      if (canonicalSelected != null) 'canonicalSelected': canonicalSelected,
+      if (canonicalCorrect != null) 'canonicalCorrect': canonicalCorrect,
     };
   }
 }
+
+/// Alias compatível para itens de resposta de submissão.
+typedef SubmissionAnswerItem = SubmissionQuestionAnswer;
 
 /// Registro persistido de uma submissão/correção de prova de um aluno.
 class SubmissionRecord {
@@ -76,7 +119,8 @@ class SubmissionRecord {
   final DateTime? createdAt;
 
   String get nota => '$score/$totalQuestions';
-  double get notaFinal10 => finalGrade ?? (totalQuestions > 0 ? (score / totalQuestions) * 10.0 : 0.0);
+  double get notaFinal10 =>
+      finalGrade ?? (totalQuestions > 0 ? (score / totalQuestions) * 10.0 : 0.0);
 
   factory SubmissionRecord.fromDocument(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
@@ -193,6 +237,49 @@ class SubmissionRepository {
         batch.set(docRef, data);
       }
 
+      await batch.commit();
+    }
+  }
+
+  /// Exclui uma submissão individual pelo ID do documento no Firestore.
+  Future<void> deleteSubmission(String submissionId) async {
+    if (submissionId.trim().isEmpty) return;
+    await _submissions.doc(submissionId).delete();
+  }
+
+  /// Exclui todas as submissões vinculadas a uma prova (e opcionalmente turma).
+  Future<void> deleteSubmissionsByExam(
+    String examId, {
+    String? classId,
+    String? className,
+  }) async {
+    if (examId.trim().isEmpty) return;
+    final snapshot = await _submissions
+        .where('examId', isEqualTo: examId)
+        .get();
+
+    final docsToDelete = snapshot.docs.where((doc) {
+      final data = doc.data();
+      if (classId != null && classId.isNotEmpty) {
+        return data['classId'] == classId;
+      }
+      if (className != null && className.isNotEmpty) {
+        return data['className'] == className;
+      }
+      return true;
+    }).toList();
+
+    if (docsToDelete.isEmpty) return;
+
+    const chunkSize = 400;
+    for (var start = 0; start < docsToDelete.length; start += chunkSize) {
+      final end = (start + chunkSize < docsToDelete.length)
+          ? start + chunkSize
+          : docsToDelete.length;
+      final batch = FirebaseService.firestore.batch();
+      for (final doc in docsToDelete.sublist(start, end)) {
+        batch.delete(doc.reference);
+      }
       await batch.commit();
     }
   }

@@ -65,9 +65,12 @@ class ExamRepository {
     required List<String> classNames,
     required bool sameExamForEveryone,
   }) async {
+    final trimmedTitle = title.trim();
     final reference = id == null ? _exams.doc() : _exams.doc(id);
     final data = <String, dynamic>{
-      'title': title.trim(),
+      'title': trimmedTitle,
+      'classId': classIds.isNotEmpty ? classIds.first : '',
+      'className': classNames.isNotEmpty ? classNames.first : '',
       'classIds': classIds,
       'classNames': classNames,
       'sameExamForEveryone': sameExamForEveryone,
@@ -78,7 +81,62 @@ class ExamRepository {
       data['questionCount'] = 0;
     }
     await reference.set(data, SetOptions(merge: true));
+
+    if (id != null) {
+      try {
+        final subCol = FirebaseService.userCollection('submissions');
+        final subSnap = await subCol.where('examId', isEqualTo: id).get();
+        const batchSize = 400;
+        final subDocs = subSnap.docs;
+        for (var i = 0; i < subDocs.length; i += batchSize) {
+          final end = (i + batchSize < subDocs.length)
+              ? i + batchSize
+              : subDocs.length;
+          final batch = FirebaseService.firestore.batch();
+          for (final doc in subDocs.sublist(i, end)) {
+            batch.update(doc.reference, {'examTitle': trimmedTitle});
+          }
+          await batch.commit();
+        }
+      } catch (_) {}
+    }
+
     return reference.id;
+  }
+
+  /// Exclui a prova, suas subcoleções (`questions` e `variants`) e, opcionalmente, submissões vinculadas.
+  Future<void> deleteExam(
+    String examId, {
+    bool deleteSubmissions = false,
+  }) async {
+    final examReference = _exams.doc(examId);
+    final questionsSnap = await examReference.collection('questions').get();
+    final variantsSnap = await examReference.collection('variants').get();
+
+    final refsToDelete = <DocumentReference>[
+      ...questionsSnap.docs.map((d) => d.reference),
+      ...variantsSnap.docs.map((d) => d.reference),
+    ];
+
+    if (deleteSubmissions) {
+      final subCol = FirebaseService.userCollection('submissions');
+      final subSnap = await subCol.where('examId', isEqualTo: examId).get();
+      refsToDelete.addAll(subSnap.docs.map((d) => d.reference));
+    }
+
+    const batchSize = 400;
+    for (var i = 0; i < refsToDelete.length; i += batchSize) {
+      final end = (i + batchSize < refsToDelete.length)
+          ? i + batchSize
+          : refsToDelete.length;
+      final batch = FirebaseService.firestore.batch();
+      for (final ref in refsToDelete.sublist(i, end)) {
+        batch.delete(ref);
+      }
+      await batch.commit();
+    }
+
+    await examReference.delete();
   }
 
   Stream<List<Questao>> watchQuestions(String examId) => _exams
@@ -117,32 +175,49 @@ class ExamRepository {
     final examReference = _exams.doc(examId);
     final questionsReference = examReference.collection('questions');
     final existing = await questionsReference.get();
-    final batch = FirebaseService.firestore.batch();
 
+    const batchSize = 400;
     final retainedIds = questions.map((question) => question.id).toSet();
-    for (final document in existing.docs) {
-      if (!retainedIds.contains(document.id)) {
-        batch.delete(document.reference);
+    final toDelete =
+        existing.docs.where((d) => !retainedIds.contains(d.id)).toList();
+
+    for (var i = 0; i < toDelete.length; i += batchSize) {
+      final end =
+          (i + batchSize < toDelete.length) ? i + batchSize : toDelete.length;
+      final batch = FirebaseService.firestore.batch();
+      for (final doc in toDelete.sublist(i, end)) {
+        batch.delete(doc.reference);
       }
+      await batch.commit();
     }
-    for (var index = 0; index < questions.length; index++) {
-      final question = questions[index];
-      batch.set(questionsReference.doc(question.id), {
-        'statement': question.enunciado.trim(),
-        'order': index,
-        'alternatives': question.alternativas.map((alternative) => {
-          'id': alternative.id,
-          'text': alternative.texto.trim(),
-          'correct': alternative.correta,
-        }).toList(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+
+    for (var i = 0; i < questions.length; i += batchSize) {
+      final end = (i + batchSize < questions.length)
+          ? i + batchSize
+          : questions.length;
+      final batch = FirebaseService.firestore.batch();
+      for (var index = i; index < end; index++) {
+        final question = questions[index];
+        batch.set(questionsReference.doc(question.id), {
+          'statement': question.enunciado.trim(),
+          'order': index,
+          'alternatives': question.alternativas
+              .map((alternative) => {
+                    'id': alternative.id,
+                    'text': alternative.texto.trim(),
+                    'correct': alternative.correta,
+                  })
+              .toList(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
     }
-    batch.update(examReference, {
+
+    await examReference.update({
       'questionCount': questions.length,
       'updatedAt': FieldValue.serverTimestamp(),
     });
-    await batch.commit();
 
     // Sempre que as questões mudam, regenera as variantes e gabaritos da prova (N3-02).
     if (questions.isNotEmpty) {

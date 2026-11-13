@@ -29,6 +29,7 @@ class _ClassStatsViewState extends State<ClassStatsView> {
   String? _selectedExam;
   ClassStats? _stats;
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -36,39 +37,90 @@ class _ClassStatsViewState extends State<ClassStatsView> {
     _loadExams();
   }
 
+  @override
+  void didUpdateWidget(covariant ClassStatsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.className != widget.className ||
+        oldWidget.repository != widget.repository) {
+      setState(() {
+        _isLoading = true;
+        _stats = null;
+        _selectedExam = null;
+        _exams = [];
+        _errorMessage = null;
+      });
+      _loadExams();
+    }
+  }
+
   Future<void> _loadExams() async {
-    final exams = await widget.repository.getAvailableExams(widget.className);
-    if (!mounted) return;
+    try {
+      final exams = await widget.repository.getAvailableExams(widget.className);
+      if (!mounted) return;
 
-    setState(() {
-      _exams = exams;
-      _selectedExam = exams.isNotEmpty ? exams.first : null;
-    });
+      final selected = exams.isNotEmpty ? exams.first : null;
+      setState(() {
+        _exams = exams;
+        _selectedExam = selected;
+        _errorMessage = null;
+        if (selected == null) {
+          _stats = null;
+          _isLoading = false;
+        }
+      });
 
-    if (_selectedExam != null) {
-      await _loadStats(_selectedExam!);
+      if (selected != null) {
+        await _loadStats(selected);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _stats = null;
+        _errorMessage = 'Não foi possível carregar as estatísticas: $error';
+      });
     }
   }
 
   Future<void> _loadStats(String examName) async {
-    setState(() => _isLoading = true);
-
-    final stats = await widget.repository.getClassStats(
-      widget.className,
-      examName,
-    );
-    if (!mounted) return;
-
     setState(() {
-      _stats = stats;
-      _isLoading = false;
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    try {
+      final stats = await widget.repository.getClassStats(
+        widget.className,
+        examName,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _stats = stats;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Não foi possível carregar os dados da prova: $error';
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _stats == null) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(_errorMessage!, textAlign: TextAlign.center),
+        ),
+      );
     }
 
     final stats = _stats;

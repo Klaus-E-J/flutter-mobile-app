@@ -154,5 +154,82 @@ void main() {
       expect(restored.questions.length, masterQuestions.length);
       expect(randomizer.verifyVariantIntegrity(restored, masterQuestions), isTrue);
     });
+
+    test('supports 5 alternatives (A-E), records originalLetter, and maps back to canonical letter', () {
+      final q = criarQuestaoVazia();
+      expect(Questao.maximoAlternativas, 5);
+      expect(Questao.maximoQuestoesOmr, 30);
+      expect(q.alternativas.length, 5);
+
+      final quickQ = criarQuestaoGabaritoRapido(
+        numero: 1,
+        letraCorreta: 'E',
+      );
+      expect(quickQ.alternativas.length, 5);
+      expect(quickQ.alternativas.indexWhere((a) => a.correta), 4);
+
+      final masterQuestions = buildSampleQuestions();
+      final variants = randomizer.generateVariants(
+        examId: 'exam_canonical_map',
+        questions: masterQuestions,
+        sameExamForEveryone: true,
+        variantCount: 2,
+        seed: 101,
+      );
+
+      for (final variant in variants) {
+        for (final vq in variant.questions) {
+          final masterQ = masterQuestions[vq.originalQuestionOrder];
+          expect(vq.originalQuestionNumber, vq.originalQuestionOrder + 1);
+
+          final correctIndex =
+              masterQ.alternativas.indexWhere((a) => a.correta);
+          final expectedMasterCorrectLetter =
+              ['A', 'B', 'C', 'D', 'E'][correctIndex];
+          expect(vq.canonicalCorrectLetter, expectedMasterCorrectLetter);
+          expect(
+            vq.toCanonicalLetter(vq.correctLetter),
+            expectedMasterCorrectLetter,
+          );
+        }
+      }
+    });
+
+    test('builds nominal OMR answer sheet variants per student even when sameExamForEveryone is true', () {
+      final masterQuestions = buildSampleQuestions();
+      final baseVariant = randomizer
+          .generateVariants(
+            examId: 'exam_nominal',
+            questions: masterQuestions,
+            sameExamForEveryone: true,
+            variantCount: 1,
+            seed: 55,
+          )
+          .single;
+
+      final students = const [
+        StudentRecord(id: 's1', name: 'Beatriz Lima', matricula: '202610'),
+        StudentRecord(id: 's2', name: 'Caio Martins', matricula: '202611'),
+      ];
+
+      final nominalSheets = randomizer.buildNominalAnswerSheetVariants(
+        baseVariants: [baseVariant],
+        students: students,
+        classId: 'c1',
+        className: '3º Ano B',
+      );
+
+      expect(nominalSheets.length, 2);
+      expect(nominalSheets[0].studentId, 's1');
+      expect(nominalSheets[0].studentName, 'Beatriz Lima');
+      expect(nominalSheets[0].studentMatricula, '202610');
+      expect(nominalSheets[0].answerKey, equals(baseVariant.answerKey));
+
+      final qr0 = ExamQrPayload.tryParse(nominalSheets[0].qrPayload);
+      expect(qr0, isNotNull);
+      expect(qr0!.examId, 'exam_nominal');
+      expect(qr0.variantId, baseVariant.id);
+      expect(qr0.studentId, 's1');
+    });
   });
 }

@@ -9,8 +9,8 @@ import '../models/exam_variant.dart';
 class ExamRandomizerService {
   const ExamRandomizerService();
 
-  static const List<String> _letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-  static const List<String> _variantCodes = ['A', 'B', 'C', 'D', 'E', 'F'];
+  static const List<String> _letters = ['A', 'B', 'C', 'D', 'E'];
+  static const List<String> _variantCodes = ['A', 'B', 'C', 'D', 'E'];
 
   /// Gera as variantes da prova de acordo com o modo configurado:
   /// - [sameExamForEveryone] = true: gera [variantCount] cadernos (A, B, C, D)
@@ -53,6 +53,7 @@ class ExamRandomizerService {
             shuffleAlternatives: shuffleAlternatives,
             studentId: student.id.isNotEmpty ? student.id : null,
             studentName: student.name,
+            studentMatricula: student.matricula.isNotEmpty ? student.matricula : null,
             classId: classId,
             className: className,
           ),
@@ -66,8 +67,6 @@ class ExamRandomizerService {
     for (var i = 0; i < count; i++) {
       final code = _variantCodes[i];
       final variantRandom = Random(baseSeed ^ (i * 104729));
-      // No Caderno A, se count == 1 e shuffle desativado, preserva ordem original;
-      // caso contrário, embaralha determinísticamente cada caderno.
       variants.add(
         _buildSingleVariant(
           id: 'variant_$code',
@@ -84,6 +83,42 @@ class ExamRandomizerService {
       );
     }
     return variants;
+  }
+
+  /// Gera folhas de resposta OMR identificadas individualmente por aluno (nome, matrícula
+  /// e QR Code nominal `AVALIA:1.0|examId|variantId|studentId`) mesmo quando a prova
+  /// é comum para a turma (`sameExamForEveryone == true`) (requisito cliente §6).
+  List<ExamVariant> buildNominalAnswerSheetVariants({
+    required List<ExamVariant> baseVariants,
+    required List<StudentRecord> students,
+    String? classId,
+    String? className,
+  }) {
+    if (baseVariants.isEmpty) return const [];
+    if (students.isEmpty) return baseVariants;
+
+    // Se as variantes já estão identificadas por aluno (modo individual), retorna como estão.
+    if (baseVariants.every((v) => v.studentId != null && v.studentId!.isNotEmpty)) {
+      return baseVariants;
+    }
+
+    final nominalSheets = <ExamVariant>[];
+    for (var i = 0; i < students.length; i++) {
+      final student = students[i];
+      final assignedVariant = baseVariants[i % baseVariants.length];
+      final safeStudentId = student.id.isNotEmpty ? student.id : 'std_${i + 1}';
+
+      nominalSheets.add(
+        assignedVariant.copyWith(
+          studentId: safeStudentId,
+          studentName: student.name,
+          studentMatricula: student.matricula.isNotEmpty ? student.matricula : null,
+          classId: classId ?? assignedVariant.classId,
+          className: className ?? assignedVariant.className,
+        ),
+      );
+    }
+    return nominalSheets;
   }
 
   /// Constrói uma variante canônica (sem embaralhamento) a partir das questões originais.
@@ -116,6 +151,7 @@ class ExamRandomizerService {
     required bool shuffleAlternatives,
     String? studentId,
     String? studentName,
+    String? studentMatricula,
     String? classId,
     String? className,
   }) {
@@ -136,17 +172,24 @@ class ExamRandomizerService {
       final entry = indexedQuestions[qIdx];
       final masterQ = entry.question;
 
-      final permAlternatives = List<Alternativa>.from(masterQ.alternativas);
-      if (shuffleAlternatives && permAlternatives.length > 1) {
-        permAlternatives.shuffle(random);
+      final indexedAlternatives = List<({String originalLetter, Alternativa alt})>.generate(
+        masterQ.alternativas.length,
+        (idx) => (
+          originalLetter: idx < _letters.length ? _letters[idx] : 'E',
+          alt: masterQ.alternativas[idx],
+        ),
+      );
+      if (shuffleAlternatives && indexedAlternatives.length > 1) {
+        indexedAlternatives.shuffle(random);
       }
 
       final variantAlternatives = <VariantAlternative>[];
       String? detectedCorrectLetter;
 
-      for (var aIdx = 0; aIdx < permAlternatives.length; aIdx++) {
+      for (var aIdx = 0; aIdx < indexedAlternatives.length; aIdx++) {
         final letter = aIdx < _letters.length ? _letters[aIdx] : 'E';
-        final alt = permAlternatives[aIdx];
+        final altEntry = indexedAlternatives[aIdx];
+        final alt = altEntry.alt;
         if (alt.correta) {
           detectedCorrectLetter = letter;
         }
@@ -156,6 +199,7 @@ class ExamRandomizerService {
             originalAlternativeId: alt.id,
             text: alt.texto,
             isCorrect: alt.correta,
+            originalLetter: altEntry.originalLetter,
           ),
         );
       }
@@ -185,6 +229,7 @@ class ExamRandomizerService {
       answerKey: answerKey,
       studentId: studentId,
       studentName: studentName,
+      studentMatricula: studentMatricula,
       classId: classId,
       className: className,
     );

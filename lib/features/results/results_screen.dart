@@ -17,6 +17,51 @@ class ResultsScreen extends StatelessWidget {
   static final SubmissionRepository _submissionRepository =
       SubmissionRepository();
 
+  Future<void> _confirmDeleteSummary(
+    BuildContext context,
+    ExamCorrectionSummary summary,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir resultados?'),
+        content: Text(
+          'Tem certeza que deseja excluir todas as ${summary.studentCount} correções de "${summary.examTitle}" (${summary.className})?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || confirmed != true) return;
+
+    try {
+      await _submissionRepository.deleteSubmissionsByExam(
+        summary.examId,
+        classId: summary.classId.isNotEmpty ? summary.classId : null,
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Resultados excluídos com sucesso.')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível excluir os resultados: $error')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -112,6 +157,7 @@ class ResultsScreen extends StatelessWidget {
                 for (final summary in summaries) ...[
                   _SummaryCard(
                     summary: summary,
+                    onDelete: () => _confirmDeleteSummary(context, summary),
                     onTap: () {
                       final prova = ProvaCorrecao(
                         id: summary.examId,
@@ -125,6 +171,7 @@ class ResultsScreen extends StatelessWidget {
 
                       final resultados = summary.submissions.map((sub) {
                         return ResultadoAluno(
+                          submissionId: sub.id,
                           studentId: sub.studentId,
                           nomeAluno: sub.studentName,
                           acertos: sub.score,
@@ -203,10 +250,12 @@ class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
     required this.summary,
     required this.onTap,
+    required this.onDelete,
   });
 
   final ExamCorrectionSummary summary;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -270,7 +319,15 @@ class _SummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(width: 4),
+          IconButton(
+            icon: Icon(
+              Icons.delete_outline,
+              color: colorScheme.error,
+              size: 20,
+            ),
+            tooltip: 'Excluir resultados desta avaliação',
+            onPressed: onDelete,
+          ),
           Icon(
             Icons.chevron_right,
             color: colorScheme.onSurfaceVariant,

@@ -45,6 +45,74 @@ class _ClassesScreenState extends State<ClassesScreen> {
     }
   }
 
+  Future<void> _showEditClassDialog(ClassRecord targetClass) async {
+    final updated = await showDialog<ClassData>(
+      context: context,
+      builder: (_) => _CreateClassDialog(
+        initialName: targetClass.name,
+        initialGrade: targetClass.grade,
+        isEditing: true,
+      ),
+    );
+    if (!mounted || updated == null) return;
+
+    try {
+      await _repository.updateClass(
+        classId: targetClass.id,
+        name: updated.name,
+        grade: updated.grade,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Turma atualizada com sucesso.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível atualizar a turma: $error')),
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteClass(ClassRecord targetClass) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir turma?'),
+        content: Text(
+          'Tem certeza que deseja excluir a turma "${targetClass.name}" e todos os seus alunos cadastrados?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+
+    try {
+      await _repository.deleteClass(targetClass.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Turma excluída com sucesso.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível excluir a turma: $error')),
+      );
+    }
+  }
+
   void _openClass(ClassRecord selectedClass) {
     Navigator.push(
       context,
@@ -52,6 +120,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
         builder: (_) => ClassDetailScreen(
           classId: selectedClass.id,
           className: selectedClass.name,
+          classGrade: selectedClass.grade,
         ),
       ),
     );
@@ -100,9 +169,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
                     child: Text('Nenhuma turma cadastrada. Crie uma turma para começar.'),
                   );
                 }
-                // Grade responsiva: em celular vira 1 coluna ocupando toda a
-                // largura; em telas largas cria mais colunas (cada cartão com
-                // no máximo 420 de largura), aproveitando o espaço horizontal.
                 return GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -117,20 +183,61 @@ class _ClassesScreenState extends State<ClassesScreen> {
                     final item = classes[index];
                     return AppCard(
                       onTap: () => _openClass(item),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Text(
-                            item.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  [
+                                    if (item.grade.isNotEmpty) item.grade,
+                                    '${item.studentCount} alunos',
+                                  ].join(' • '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${item.studentCount} alunos',
-                            style: Theme.of(context).textTheme.bodySmall,
+                          PopupMenuButton<String>(
+                            tooltip: 'Opções da turma',
+                            onSelected: (value) {
+                              if (value == 'edit') {
+                                _showEditClassDialog(item);
+                              } else if (value == 'delete') {
+                                _confirmDeleteClass(item);
+                              }
+                            },
+                            itemBuilder: (ctx) => const [
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: ListTile(
+                                  leading: Icon(Icons.edit_outlined),
+                                  title: Text('Editar turma'),
+                                  contentPadding: EdgeInsets.zero,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: ListTile(
+                                  leading: Icon(Icons.delete_outline, color: Colors.red),
+                                  title: Text('Excluir turma', style: TextStyle(color: Colors.red)),
+                                  contentPadding: EdgeInsets.zero,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -173,7 +280,15 @@ class ClassData {
 }
 
 class _CreateClassDialog extends StatefulWidget {
-  const _CreateClassDialog();
+  const _CreateClassDialog({
+    this.initialName = '',
+    this.initialGrade = '',
+    this.isEditing = false,
+  });
+
+  final String initialName;
+  final String initialGrade;
+  final bool isEditing;
 
   @override
   State<_CreateClassDialog> createState() {
@@ -182,12 +297,18 @@ class _CreateClassDialog extends StatefulWidget {
 }
 
 class _CreateClassDialogState extends State<_CreateClassDialog> {
-  final TextEditingController _nameController = TextEditingController();
-
-  final TextEditingController _gradeController = TextEditingController();
+  late final TextEditingController _nameController;
+  late final TextEditingController _gradeController;
 
   String? _nameError;
   String? _gradeError;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName);
+    _gradeController = TextEditingController(text: widget.initialGrade);
+  }
 
   void _createClass() {
     final name = _nameController.text.trim();
@@ -196,15 +317,12 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
     if (name.isEmpty || grade.isEmpty) {
       setState(() {
         _nameError = name.isEmpty ? 'Digite o nome da turma' : null;
-
         _gradeError = grade.isEmpty ? 'Digite a série da turma' : null;
       });
-
       return;
     }
 
     final newClass = ClassData(name: name, grade: grade, studentCount: 0);
-
     Navigator.pop(context, newClass);
   }
 
@@ -218,7 +336,7 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Nova turma'),
+      title: Text(widget.isEditing ? 'Editar turma' : 'Nova turma'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -245,10 +363,13 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () {Navigator.pop(context);},
+          onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
-        FilledButton(onPressed: _createClass, child: const Text('Criar')),
+        FilledButton(
+          onPressed: _createClass,
+          child: Text(widget.isEditing ? 'Salvar' : 'Criar'),
+        ),
       ],
     );
   }

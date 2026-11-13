@@ -103,6 +103,79 @@ void main() {
 
       final resultsSheet = decodedExcel['Resultados'];
       expect(resultsSheet.rows.length, greaterThanOrEqualTo(3)); // Header + 2 students
+
+      final statsSheet = decodedExcel['Estatisticas'];
+      final statsText = statsSheet.rows
+          .expand((r) => r)
+          .map((c) => c?.value?.toString() ?? '')
+          .join(' | ');
+      expect(statsText, contains('Mais Marcada'));
+      expect(statsText, contains('% A'));
+      expect(statsText, contains('% E'));
+    });
+
+    test('orders Q1..QN by originalQuestionNumber and exports canonicalSelected letters across shuffled variants', () {
+      final shuffledSubmissions = [
+        SubmissionRecord(
+          id: 'sub_shuffled',
+          examId: 'exam_shuf',
+          examTitle: 'Prova Embaralhada',
+          classId: 'class_1',
+          className: '3º Ano A',
+          studentId: 'std_1',
+          studentName: 'Lucas Mendes',
+          score: 1,
+          totalQuestions: 2,
+          percentage: 50.0,
+          variantId: 'var_B',
+          variantCode: 'B',
+          answers: const [
+            // In Variant B, Q1 is actually Master Q2 (marked D on sheet -> canonical E)
+            SubmissionQuestionAnswer(
+              questionNumber: 1,
+              originalQuestionNumber: 2,
+              marked: 'D',
+              canonicalSelected: 'E',
+              correct: 'A',
+              canonicalCorrect: 'B',
+              isCorrect: false,
+            ),
+            // In Variant B, Q2 is actually Master Q1 (marked B on sheet -> canonical A)
+            SubmissionQuestionAnswer(
+              questionNumber: 2,
+              originalQuestionNumber: 1,
+              marked: 'B',
+              canonicalSelected: 'A',
+              correct: 'B',
+              canonicalCorrect: 'A',
+              isCorrect: true,
+            ),
+          ],
+        ),
+      ];
+
+      final csvBytes = exportService.generateCsvBytes(
+        submissions: shuffledSubmissions,
+        includeStudentResults: false,
+        includeStatistics: true,
+        includeAnswerMatrix: true,
+      );
+      final csvText = utf8.decode(csvBytes);
+
+      // Q1 in matrix must be Original Q1 (canonicalSelected 'A', correct 'A')
+      // Q2 in matrix must be Original Q2 (canonicalSelected 'E', correct 'B')
+      expect(
+        csvText,
+        contains('Questão 1,1,1,100.0,A,A (100%),100%,0%,0%,0%,0%,0%'),
+      );
+      expect(
+        csvText,
+        contains('Questão 2,1,0,0.0,B,E (100%),0%,0%,0%,0%,100%,0%'),
+      );
+      expect(
+        csvText,
+        contains('3º Ano A,Prova Embaralhada,Lucas Mendes,B,A,A,ACERTO,E,B,ERRO'),
+      );
     });
 
     testWidgets('ExportScreen loads submissions, generates real file, and invokes share callback', (tester) async {

@@ -106,7 +106,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     });
   }
 
-  Future<void> _openQuestions() async {
+  Future<void> _openQuestions({bool openQuickAnswerKey = false}) async {
     if (!await _saveExam(showFeedback: false)) return;
     final examId = _examId;
     if (examId == null || !mounted) return;
@@ -115,6 +115,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
         builder: (_) => ProvaQuestoesScreen(
           examId: examId,
           provaTitulo: _nameController.text.trim(),
+          openQuickAnswerKeyOnStart: openQuickAnswerKey,
         ),
       ),
     );
@@ -139,6 +140,48 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteExam() async {
+    final examId = _examId;
+    if (examId == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir prova?'),
+        content: Text(
+          'Tem certeza que deseja excluir a prova "${_nameController.text.trim()}", suas questões e variantes?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+
+    setState(() => _saving = true);
+    try {
+      await _examRepository.deleteExam(examId);
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível excluir a prova: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<bool> _saveExam({bool showFeedback = true}) async {
@@ -198,6 +241,14 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Editar prova' : 'Criar prova'),
+        actions: [
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Excluir prova',
+              onPressed: _saving ? null : _confirmDeleteExam,
+            ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -318,7 +369,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
                     _SectionTitle(
                       title: 'Questões e Impressão (N3)',
                       subtitle:
-                          'Cadastre questões, embaralhe variantes e gere os cadernos e folhas OMR em PDF.',
+                          'Cadastre questões completas, gere apenas o gabarito para prova externa ou imprima folhas OMR.',
                     ),
                     const SizedBox(height: 12),
                     AppButton(
@@ -326,7 +377,17 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
                       icon: Icons.quiz_outlined,
                       variant: AppButtonVariant.secondary,
                       expanded: true,
-                      onPressed: _saving || _loadingClasses ? null : _openQuestions,
+                      onPressed: _saving || _loadingClasses ? null : () => _openQuestions(),
+                    ),
+                    const SizedBox(height: 10),
+                    AppButton(
+                      label: 'Gabarito Rápido (Prova Externa)',
+                      icon: Icons.grid_on_rounded,
+                      variant: AppButtonVariant.secondary,
+                      expanded: true,
+                      onPressed: _saving || _loadingClasses
+                          ? null
+                          : () => _openQuestions(openQuickAnswerKey: true),
                     ),
                     const SizedBox(height: 10),
                     AppButton(
