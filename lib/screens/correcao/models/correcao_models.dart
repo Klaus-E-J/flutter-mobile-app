@@ -1,4 +1,5 @@
 import '../../../features/correction/data/submission_repository.dart';
+import '../../../features/exams/models/exam_application_mode.dart';
 
 /// Representa uma prova disponível para correção.
 class ProvaCorrecao {
@@ -9,10 +10,14 @@ class ProvaCorrecao {
     required this.disciplina,
     required this.totalQuestoes,
     required this.totalAlunos,
-    this.provaIndividual = false,
+    bool provaIndividual = false,
+    ExamApplicationMode? modoAplicacao,
     this.dataCriacao,
     this.classId,
-  });
+  }) : modoAplicacao = modoAplicacao ??
+            (provaIndividual
+                ? ExamApplicationMode.individual
+                : ExamApplicationMode.sameForEveryone);
 
   final String id;
   final String titulo;
@@ -21,9 +26,11 @@ class ProvaCorrecao {
   final int totalQuestoes;
   final int totalAlunos;
 
-  /// Se `true`, cada aluno tem uma sequência diferente de questões
-  /// e o QR Code identifica a variante individual do aluno.
-  final bool provaIndividual;
+  /// Como a prova foi aplicada (o que muda de um aluno para outro).
+  final ExamApplicationMode modoAplicacao;
+
+  /// `true` quando cada aluno tem uma prova própria (com QR Code individual).
+  bool get provaIndividual => modoAplicacao.perStudent;
 
   final DateTime? dataCriacao;
   final String? classId;

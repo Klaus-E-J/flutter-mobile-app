@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../screens/correcao/models/correcao_models.dart';
 import '../correction/data/submission_repository.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_delete_button.dart';
+import '../../core/widgets/app_snack_bar.dart';
+import '../../core/widgets/app_dialog.dart';
 
 /// Resultado individual detalhado do aluno (N3-05 / N3-10).
 ///
@@ -27,27 +32,12 @@ class StudentResultScreen extends StatelessWidget {
     final submissionId = resultado.submissionId;
     if (submissionId == null || submissionId.isEmpty) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Excluir correção?'),
-        content: Text(
-          'Tem certeza que deseja excluir o resultado de "${resultado.nomeAluno}"?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
+      title: 'Excluir correção?',
+      message: 'Tem certeza que deseja excluir o resultado de "${resultado.nomeAluno}"?',
+      confirmLabel: 'Excluir',
+      destructive: true,
     );
     if (!context.mounted || confirmed != true) return;
 
@@ -57,9 +47,7 @@ class StudentResultScreen extends StatelessWidget {
       Navigator.pop(context, true);
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível excluir a correção: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível excluir a correção: $error');
     }
   }
 
@@ -77,11 +65,7 @@ class StudentResultScreen extends StatelessWidget {
         actions: [
           if (resultado.submissionId != null &&
               resultado.submissionId!.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: 'Excluir resultado do aluno',
-              onPressed: () => _confirmDelete(context),
-            ),
+            AppDeleteButton(tooltip: 'Excluir resultado do aluno', onPressed: () => _confirmDelete(context)),
         ],
       ),
       body: SafeArea(
@@ -98,9 +82,7 @@ class StudentResultScreen extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               resultado.nomeAluno,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.headlineSmall,
             ),
             const SizedBox(height: 4),
             Text(
@@ -159,16 +141,16 @@ class StudentResultScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _ContadorResultado(
-                          icon: Icons.check_circle_outline,
+                          icon: AppIcons.correct,
                           titulo: 'Acertos',
                           valor: '${resultado.acertos}',
-                          color: Colors.green.shade700,
+                          color: AppColors.success,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _ContadorResultado(
-                          icon: Icons.cancel_outlined,
+                          icon: AppIcons.incorrect,
                           titulo: 'Erros / Branco',
                           valor: '$erros',
                           color: colorScheme.error,
@@ -182,9 +164,7 @@ class StudentResultScreen extends StatelessWidget {
             const SizedBox(height: 24),
             Text(
               'Questões',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: 4),
             Text(
@@ -239,7 +219,7 @@ class _ContadorResultado extends StatelessWidget {
         vertical: 12,
       ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: theme.colorScheme.outlineVariant,
         ),
@@ -257,9 +237,7 @@ class _ContadorResultado extends StatelessWidget {
             children: [
               Text(
                 valor,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
               Text(
                 titulo,
@@ -287,7 +265,7 @@ class _QuestaoResultadoCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     final resultColor = questao.isCorrect
-        ? Colors.green.shade700
+        ? AppColors.success
         : theme.colorScheme.error;
 
     final origNum = questao.originalQuestionNumber;
@@ -302,7 +280,7 @@ class _QuestaoResultadoCard extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: theme.colorScheme.outlineVariant,
         ),
@@ -311,8 +289,8 @@ class _QuestaoResultadoCard extends StatelessWidget {
         children: [
           Icon(
             questao.isCorrect
-                ? Icons.check_circle_outline
-                : Icons.cancel_outlined,
+                ? AppIcons.correct
+                : AppIcons.incorrect,
             size: 20,
             color: resultColor,
           ),

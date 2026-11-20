@@ -34,12 +34,30 @@ class StudentRecord {
     required this.name,
     this.matricula = '',
     this.email = '',
+    this.classId,
+    this.className,
   });
 
   final String id;
   final String name;
   final String matricula;
   final String email;
+
+  /// Turma do aluno (preenchida quando os alunos de várias turmas são
+  /// carregados juntos, ex.: prova vinculada a mais de uma turma).
+  final String? classId;
+  final String? className;
+
+  StudentRecord withClass({String? classId, String? className}) {
+    return StudentRecord(
+      id: id,
+      name: name,
+      matricula: matricula,
+      email: email,
+      classId: classId ?? this.classId,
+      className: className ?? this.className,
+    );
+  }
 
   factory StudentRecord.fromDocument(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
@@ -198,6 +216,22 @@ class ClassRepository {
         .orderBy('name')
         .get();
     return snapshot.docs.map(StudentRecord.fromDocument).toList();
+  }
+
+  /// Carrega os alunos de várias turmas, cada um marcado com a própria turma.
+  Future<List<StudentRecord>> getStudentsForClasses({
+    required List<String> classIds,
+    List<String> classNames = const [],
+  }) async {
+    final result = <StudentRecord>[];
+    for (var i = 0; i < classIds.length; i++) {
+      final className = i < classNames.length ? classNames[i] : null;
+      final students = await getStudents(classIds[i]);
+      result.addAll(
+        students.map((s) => s.withClass(classId: classIds[i], className: className)),
+      );
+    }
+    return result;
   }
 
   Future<void> addStudent({

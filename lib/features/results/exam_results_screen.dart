@@ -4,6 +4,10 @@ import '../../core/widgets/app_card.dart';
 import '../../screens/correcao/models/correcao_models.dart';
 import '../correction/data/submission_repository.dart';
 import 'student_result_screen.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_delete_button.dart';
+import '../../core/widgets/app_snack_bar.dart';
+import '../../core/widgets/app_dialog.dart';
 
 /// FE-10 — Resultados de uma prova.
 ///
@@ -39,27 +43,12 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
     final submissionId = resultado.submissionId;
     if (submissionId == null || submissionId.isEmpty) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Excluir correção do aluno?'),
-        content: Text(
-          'Tem certeza que deseja excluir o resultado de "${resultado.nomeAluno}"?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
+      title: 'Excluir correção do aluno?',
+      message: 'Tem certeza que deseja excluir o resultado de "${resultado.nomeAluno}"?',
+      confirmLabel: 'Excluir',
+      destructive: true,
     );
     if (!mounted || confirmed != true) return;
 
@@ -69,41 +58,22 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
       setState(() {
         _resultados.removeWhere((r) => r.submissionId == submissionId);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Resultado excluído com sucesso.')),
-      );
+      AppSnackBar.success(context, 'Resultado excluído com sucesso.');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível excluir o resultado: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível excluir o resultado: $error');
     }
   }
 
   Future<void> _confirmDeleteAllResults() async {
     if (_resultados.isEmpty) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Excluir todos os resultados?'),
-        content: Text(
-          'Tem certeza que deseja excluir todas as ${_resultados.length} correções de "${widget.prova.titulo}"?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Excluir tudo'),
-          ),
-        ],
-      ),
+      title: 'Excluir todos os resultados?',
+      message: 'Tem certeza que deseja excluir todas as ${_resultados.length} correções de "${widget.prova.titulo}"?',
+      confirmLabel: 'Excluir tudo',
+      destructive: true,
     );
     if (!mounted || confirmed != true) return;
 
@@ -118,9 +88,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
       Navigator.pop(context);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível excluir os resultados: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível excluir os resultados: $error');
     }
   }
 
@@ -142,11 +110,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
         title: const Text('Resultados da prova'),
         actions: [
           if (_resultados.any((r) => r.submissionId != null))
-            IconButton(
-              icon: const Icon(Icons.delete_sweep_outlined),
-              tooltip: 'Excluir todos os resultados desta prova',
-              onPressed: _confirmDeleteAllResults,
-            ),
+            AppDeleteButton(tooltip: 'Excluir todos os resultados desta prova', onPressed: _confirmDeleteAllResults),
         ],
       ),
       body: SafeArea(
@@ -155,9 +119,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
           children: [
             Text(
               widget.prova.titulo,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.headlineSmall,
             ),
             const SizedBox(height: 4),
 
@@ -199,9 +161,7 @@ class _ExamResultsScreenState extends State<ExamResultsScreen> {
 
             Text(
               'Alunos',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.titleMedium,
             ),
 
             const SizedBox(height: 4),
@@ -279,9 +239,7 @@ class _ResumoItem extends StatelessWidget {
       children: [
         Text(
           valor,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleLarge,
         ),
         const SizedBox(height: 2),
         Text(
@@ -366,7 +324,6 @@ class _AlunoResultadoCard extends StatelessWidget {
               Text(
                 resultado.nota,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
                   color: corNota,
                 ),
               ),
@@ -380,18 +337,10 @@ class _AlunoResultadoCard extends StatelessWidget {
           ),
 
           if (onDelete != null)
-            IconButton(
-              icon: Icon(
-                Icons.delete_outline,
-                size: 20,
-                color: colorScheme.error,
-              ),
-              tooltip: 'Excluir resultado do aluno',
-              onPressed: onDelete,
-            ),
+            AppDeleteButton(tooltip: 'Excluir resultado do aluno', onPressed: onDelete),
 
           Icon(
-            Icons.chevron_right,
+            AppIcons.chevron,
             color: colorScheme.onSurfaceVariant,
           ),
         ],

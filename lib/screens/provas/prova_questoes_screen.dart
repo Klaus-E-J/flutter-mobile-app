@@ -4,6 +4,7 @@ import '../../core/widgets/app_widgets.dart';
 import '../../features/exams/data/exam_repository.dart';
 import 'models/questao_model.dart';
 import 'widgets/questao_card.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Tela de edição das questões dentro de uma prova (FE-07).
 ///
@@ -94,16 +95,7 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
         _erroGlobal =
             'Limite máximo de ${Questao.maximoQuestoesOmr} questões por folha de respostas OMR atingido.';
       });
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text(
-              'A folha de respostas OMR comporta no máximo 30 questões.',
-            ),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      AppSnackBar.show(context, 'A folha de respostas OMR comporta no máximo 30 questões.');
       return;
     }
 
@@ -133,16 +125,7 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
       _erroGlobal = null;
     });
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            'Gabarito rápido com ${novasQuestoes.length} questão(ões) gerado! Toque em Salvar para confirmar.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    AppSnackBar.success(context, 'Gabarito rápido com ${novasQuestoes.length} questão(ões) gerado! Toque em Salvar para confirmar.');
   }
 
   /// Remove a questão no [index] dado.
@@ -204,16 +187,14 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
     if (!_validarTudo()) return;
     setState(() => _isLoading = true);
     try {
+      // saveQuestions já sincroniza as variantes: se o conteúdo das questões
+      // mudou, as provas são geradas de novo (folhas antigas deixam de valer).
       await _repository.saveQuestions(widget.examId, _questoes);
-      try {
-        await _repository.regenerateVariantsForExam(examId: widget.examId);
-      } catch (_) {}
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${_questoes.length} questão(ões) salva(s) no Firestore.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppSnackBar.success(
+        context,
+        '${_questoes.length} questão(ões) salva(s). Se você já tinha impresso '
+        'esta prova, imprima as folhas novamente.',
       );
       setState(() {
         _temAlteracoes = false;
@@ -233,28 +214,17 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
   Future<bool> _confirmarSaida() async {
     if (!_temAlteracoes) return true;
 
-    final resultado = await showDialog<bool>(
+    final resultado = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Alterações não salvas'),
-        content: const Text(
-          'Você tem alterações não salvas. '
+      title: 'Alterações não salvas',
+      message: 'Você tem alterações não salvas. '
           'Deseja sair sem salvar?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Continuar editando'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Sair'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Sair',
+      cancelLabel: 'Continuar editando',
+      destructive: true,
     );
 
-    return resultado ?? false;
+    return resultado;
   }
 
   @override
@@ -272,16 +242,10 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
         appBar: AppBar(
           title: Text(widget.provaTitulo),
           actions: [
-            if (!_isLoading)
-              IconButton(
-                onPressed: _abrirAssistenteGabaritoRapido,
-                icon: const Icon(Icons.flash_on_outlined),
-                tooltip: 'Gabarito Rápido (Prova Externa)',
-              ),
             if (!_isLoading && _questoes.isNotEmpty)
               TextButton.icon(
                 onPressed: _salvar,
-                icon: const Icon(Icons.check, size: 18),
+                icon: const Icon(AppIcons.confirm, size: 18),
                 label: const Text('Salvar'),
               ),
           ],
@@ -290,7 +254,7 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
         floatingActionButton: !_isLoading
             ? FloatingActionButton.extended(
                 onPressed: _adicionarQuestao,
-                icon: const Icon(Icons.add),
+                icon: const Icon(AppIcons.add),
                 label: const Text('Questão'),
               )
             : null,
@@ -321,13 +285,13 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
 
         Expanded(
           child: AppEmptyState(
-            icon: Icons.quiz_outlined,
+            icon: AppIcons.questions,
             title: 'Nenhuma questão cadastrada',
             description:
                 'Adicione questões completas usando o botão abaixo ou gere apenas o Gabarito Rápido com QR Code para uma prova externa.',
             action: OutlinedButton.icon(
               onPressed: _abrirAssistenteGabaritoRapido,
-              icon: const Icon(Icons.grid_on_outlined),
+              icon: const Icon(AppIcons.quickAnswerKey),
               label: const Text('Gabarito Rápido (Prova Externa)'),
             ),
           ),
@@ -357,16 +321,14 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.quiz_outlined,
+                    AppIcons.questions,
                     size: 20,
                     color: theme.colorScheme.primary,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     '${_questoes.length}/${Questao.maximoQuestoesOmr} questão(ões)',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: theme.textTheme.titleSmall,
                   ),
                 ],
               ),
@@ -375,12 +337,12 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
                 children: [
                   TextButton.icon(
                     onPressed: _abrirAssistenteGabaritoRapido,
-                    icon: const Icon(Icons.grid_on_outlined, size: 18),
+                    icon: const Icon(AppIcons.quickAnswerKey, size: 18),
                     label: const Text('Gabarito Rápido'),
                   ),
                   TextButton.icon(
                     onPressed: _validarTudo,
-                    icon: const Icon(Icons.playlist_add_check, size: 18),
+                    icon: const Icon(AppIcons.validate, size: 18),
                     label: const Text('Validar tudo'),
                   ),
                 ],
@@ -424,7 +386,7 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
         style: TextStyle(color: colorScheme.onErrorContainer),
       ),
       leading: Icon(
-        Icons.error_outline,
+        AppIcons.error,
         color: colorScheme.error,
       ),
       backgroundColor: colorScheme.errorContainer.withValues(alpha: 0.4),
@@ -518,9 +480,7 @@ class _GabaritoRapidoSheetState extends State<_GabaritoRapidoSheet> {
             children: [
               Text(
                 'Gabarito Rápido (Prova Externa)',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.titleLarge,
               ),
               const SizedBox(height: 4),
               Text(
@@ -541,12 +501,10 @@ class _GabaritoRapidoSheetState extends State<_GabaritoRapidoSheet> {
                     children: [
                       Text(
                         'Total de questões: ',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: theme.textTheme.titleSmall,
                       ),
                       IconButton(
-                        icon: const Icon(Icons.remove_circle_outline),
+                        icon: const Icon(AppIcons.decrease),
                         tooltip: 'Diminuir questões',
                         onPressed: _quantidade > 1
                             ? () => setState(() => _quantidade--)
@@ -564,13 +522,12 @@ class _GabaritoRapidoSheetState extends State<_GabaritoRapidoSheet> {
                         child: Text(
                           '$_quantidade',
                           style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
                             color: colorScheme.onPrimaryContainer,
                           ),
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
+                        icon: const Icon(AppIcons.increase),
                         tooltip: 'Aumentar questões',
                         onPressed: _quantidade < Questao.maximoQuestoesOmr
                             ? () => setState(() => _quantidade++)
@@ -676,7 +633,7 @@ class _GabaritoRapidoSheetState extends State<_GabaritoRapidoSheet> {
                   Expanded(
                     child: FilledButton.icon(
                       onPressed: _confirmar,
-                      icon: const Icon(Icons.check),
+                      icon: const Icon(AppIcons.confirm),
                       label: const Text('Aplicar Gabarito'),
                     ),
                   ),

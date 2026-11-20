@@ -10,6 +10,8 @@ import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_loading.dart';
 import '../correction/data/submission_repository.dart';
 import 'services/result_export_service.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_snack_bar.dart';
 
 /// Callback para compartilhamento ou salvamento de arquivo exportado.
 typedef ShareExportedFileCallback = Future<void> Function(
@@ -212,15 +214,9 @@ class _ExportScreenState extends State<ExportScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _savedFilePath != null
+      AppSnackBar.error(context, _savedFilePath != null
                 ? 'Arquivo salvo em: $_savedFilePath'
-                : 'Erro ao abrir compartilhamento: $error',
-          ),
-        ),
-      );
+                : 'Erro ao abrir compartilhamento: $error');
     }
   }
 
@@ -264,9 +260,7 @@ class _ExportScreenState extends State<ExportScreen> {
       children: [
         Text(
           'Exportar',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.headlineSmall,
         ),
         const SizedBox(height: 4),
         Text(
@@ -276,9 +270,7 @@ class _ExportScreenState extends State<ExportScreen> {
         const SizedBox(height: 20),
         Text(
           'Avaliação / Turma',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
@@ -315,13 +307,11 @@ class _ExportScreenState extends State<ExportScreen> {
         const SizedBox(height: 24),
         Text(
           'Conteúdo',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
         _buildOpcao(
-          icon: Icons.assignment_outlined,
+          icon: AppIcons.results,
           titulo: 'Resultados dos alunos',
           descricao: 'Notas, variantes, acertos e situação de cada aluno.',
           valor: _incluirResultados,
@@ -329,7 +319,7 @@ class _ExportScreenState extends State<ExportScreen> {
         ),
         const SizedBox(height: 10),
         _buildOpcao(
-          icon: Icons.bar_chart_outlined,
+          icon: AppIcons.statistics,
           titulo: 'Estatísticas da turma',
           descricao: 'Médias, taxa de aprovação e desempenho por questão.',
           valor: _incluirEstatisticas,
@@ -337,7 +327,7 @@ class _ExportScreenState extends State<ExportScreen> {
         ),
         const SizedBox(height: 10),
         _buildOpcao(
-          icon: Icons.fact_check_outlined,
+          icon: AppIcons.answerKey,
           titulo: 'Gabarito e questões',
           descricao: 'Matriz detalhada de alternativa marcada vs. gabarito por questão.',
           valor: _incluirGabarito,
@@ -346,9 +336,7 @@ class _ExportScreenState extends State<ExportScreen> {
         const SizedBox(height: 28),
         Text(
           'Formato',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
         AppCard(
@@ -359,7 +347,7 @@ class _ExportScreenState extends State<ExportScreen> {
                 child: _buildFormatoOpcao(
                   formato: _ExportFormat.excel,
                   label: 'Excel (.xlsx)',
-                  icon: Icons.table_chart_outlined,
+                  icon: AppIcons.spreadsheet,
                 ),
               ),
               const SizedBox(width: 12),
@@ -367,7 +355,7 @@ class _ExportScreenState extends State<ExportScreen> {
                 child: _buildFormatoOpcao(
                   formato: _ExportFormat.csv,
                   label: 'CSV (.csv)',
-                  icon: Icons.description_outlined,
+                  icon: AppIcons.exams,
                 ),
               ),
             ],
@@ -376,7 +364,7 @@ class _ExportScreenState extends State<ExportScreen> {
         const SizedBox(height: 28),
         AppButton(
           label: 'Exportar e compartilhar',
-          icon: Icons.upload_outlined,
+          icon: AppIcons.export,
           expanded: true,
           onPressed: _hasSelection ? _iniciarExportacao : null,
         ),
@@ -404,7 +392,7 @@ class _ExportScreenState extends State<ExportScreen> {
 
     return InkWell(
       onTap: () => setState(() => _formato = formato),
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
@@ -413,7 +401,7 @@ class _ExportScreenState extends State<ExportScreen> {
             color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
             width: isSelected ? 1.5 : 1,
           ),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           children: [
@@ -463,7 +451,7 @@ class _ExportScreenState extends State<ExportScreen> {
             const SizedBox(width: 8),
             Text(
               titulo,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.titleSmall,
             ),
           ],
         ),
@@ -499,7 +487,7 @@ class _ExportScreenState extends State<ExportScreen> {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.check,
+                AppIcons.confirm,
                 size: 40,
                 color: colorScheme.onPrimaryContainer,
               ),
@@ -507,9 +495,7 @@ class _ExportScreenState extends State<ExportScreen> {
             const SizedBox(height: 24),
             Text(
               'Arquivo gerado!',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             Text(
@@ -532,7 +518,7 @@ class _ExportScreenState extends State<ExportScreen> {
             const SizedBox(height: 32),
             AppButton(
               label: 'Compartilhar / Salvar',
-              icon: Icons.share_outlined,
+              icon: AppIcons.share,
               expanded: true,
               onPressed: _compartilhar,
             ),
@@ -540,7 +526,7 @@ class _ExportScreenState extends State<ExportScreen> {
             AppButton(
               label: 'Nova exportação',
               variant: AppButtonVariant.secondary,
-              icon: Icons.refresh,
+              icon: AppIcons.retry,
               expanded: true,
               onPressed: _resetar,
             ),
@@ -561,16 +547,14 @@ class _ExportScreenState extends State<ExportScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.error_outline,
+              AppIcons.error,
               size: 56,
               color: colorScheme.error,
             ),
             const SizedBox(height: 16),
             Text(
               'Falha na exportação',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.headlineSmall,
             ),
             if (_errorMessage != null) ...[
               const SizedBox(height: 8),
@@ -585,7 +569,7 @@ class _ExportScreenState extends State<ExportScreen> {
             const SizedBox(height: 32),
             AppButton(
               label: 'Tentar novamente',
-              icon: Icons.refresh,
+              icon: AppIcons.retry,
               expanded: true,
               onPressed: _iniciarExportacao,
             ),

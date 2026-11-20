@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/statistics_models.dart';
+import '../../../core/theme/app_icons.dart';
 
 /// Tile para o histórico do aluno por disciplina.
 ///
@@ -39,12 +40,12 @@ class SubjectHistoryTile extends StatelessWidget {
           Expanded(
             child: Text(
               '${result.subjectName} — $gradeText',
-              style: const TextStyle(fontWeight: FontWeight.w500),
+              style: Theme.of(context).textTheme.titleSmall,
             ),
           ),
           if (onTap != null)
             Icon(
-              Icons.chevron_right,
+              AppIcons.chevron,
               color: theme.colorScheme.onSurfaceVariant,
               size: 20,
             ),

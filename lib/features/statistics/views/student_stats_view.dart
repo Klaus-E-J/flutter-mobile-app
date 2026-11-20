@@ -4,6 +4,8 @@ import '../data/statistics_repository.dart';
 import '../models/statistics_models.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/subject_history_tile.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/app_loading.dart';
 
 /// View "Desempenho do aluno" — aba Aluno.
 ///
@@ -123,7 +125,7 @@ class _StudentStatsViewState extends State<StudentStatsView> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _stats == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoading();
     }
 
     final stats = _stats;
@@ -154,7 +156,7 @@ class _StudentStatsViewState extends State<StudentStatsView> {
             child: DropdownButton<String>(
               value: _selectedStudentId,
               isExpanded: true,
-              icon: const Icon(Icons.arrow_drop_down),
+              icon: const Icon(AppIcons.dropdown),
               items: _students.map((student) {
                 return DropdownMenuItem<String>(
                   value: student.id,
@@ -176,9 +178,7 @@ class _StudentStatsViewState extends State<StudentStatsView> {
         // Título
         Text(
           'Desempenho do aluno',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.headlineSmall,
         ),
         const SizedBox(height: 4),
         Text(
@@ -221,9 +221,7 @@ class _StudentStatsViewState extends State<StudentStatsView> {
         // Histórico
         Text(
           'Histórico',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
         for (final result in stats.subjectResults) ...[

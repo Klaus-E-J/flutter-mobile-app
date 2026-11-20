@@ -12,9 +12,13 @@ import '../../core/widgets/app_loading.dart';
 import '../../screens/provas/models/questao_model.dart';
 import '../classes/data/class_repository.dart';
 import 'data/exam_repository.dart';
+import 'models/exam_application_mode.dart';
 import 'models/exam_variant.dart';
 import 'services/exam_pdf_service.dart';
 import 'services/exam_randomizer_service.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_snack_bar.dart';
+import '../../core/widgets/app_dialog.dart';
 
 enum ExamPdfDocumentType {
   completePackage,
@@ -34,7 +38,7 @@ class ExamPrintScreen extends StatefulWidget {
     required this.examTitle,
     required this.classIds,
     required this.classNames,
-    required this.sameExamForEveryone,
+    required this.applicationMode,
     this.initialQuestions,
     this.initialVariants,
     this.initialStudents,
@@ -45,7 +49,7 @@ class ExamPrintScreen extends StatefulWidget {
   final String examTitle;
   final List<String> classIds;
   final List<String> classNames;
-  final bool sameExamForEveryone;
+  final ExamApplicationMode applicationMode;
   final List<Questao>? initialQuestions;
   final List<ExamVariant>? initialVariants;
   final List<StudentRecord>? initialStudents;
@@ -65,9 +69,6 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
   List<ExamVariant> _variants = [];
   List<StudentRecord> _students = [];
   ExamPdfDocumentType _docType = ExamPdfDocumentType.completePackage;
-  int _variantCount = 4;
-  bool _shuffleQuestions = true;
-  bool _shuffleAlternatives = true;
   bool _nominalSheetsPerStudent = true;
   bool _isLoading = true;
   String? _errorMessage;
@@ -78,8 +79,21 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
     _loadData();
   }
 
+  /// O modo atual embaralha algo? (só então faz sentido "Reembaralhar").
+  bool get _modeShuffles =>
+      widget.applicationMode.shuffleQuestions ||
+      widget.applicationMode.shuffleAlternatives;
+
+  String get _modeSummary {
+    final mode = widget.applicationMode;
+    if (mode.perStudent && _students.isEmpty) {
+      return '${mode.description} Cadastre os alunos da turma para gerar a prova de cada um.';
+    }
+    return mode.description;
+  }
+
   List<ExamVariant> get _effectiveAnswerSheetVariants {
-    if (widget.sameExamForEveryone &&
+    if (!widget.applicationMode.perStudent &&
         _nominalSheetsPerStudent &&
         _students.isNotEmpty) {
       return _randomizerService.buildNominalAnswerSheetVariants(
@@ -117,69 +131,28 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
       if (widget.initialStudents != null) {
         students = List<StudentRecord>.from(widget.initialStudents!);
       } else if (widget.classIds.isNotEmpty) {
-        for (final classId in widget.classIds) {
-          try {
-            final classStudents = await _classRepository.getStudents(classId);
-            students.addAll(classStudents);
-          } catch (_) {}
-        }
-      }
-
-      var variants = widget.initialVariants ?? <ExamVariant>[];
-      if (variants.isEmpty) {
-        try {
-          variants = await _examRepository.getVariants(widget.examId);
-        } catch (_) {}
-      }
-
-      // Verifica se a lista de alunos da turma mudou no modo individual
-      bool needsRegeneration = variants.isEmpty;
-      if (!needsRegeneration && !widget.sameExamForEveryone) {
-        if (students.isEmpty) {
-          needsRegeneration = variants.any(
-            (v) => v.studentId != null && v.studentId!.isNotEmpty,
-          );
-        } else if (variants.length != students.length) {
-          needsRegeneration = true;
-        } else {
-          final studentMap = {for (final s in students) s.id: s};
-          for (final v in variants) {
-            final s = v.studentId != null ? studentMap[v.studentId] : null;
-            if (s == null ||
-                v.studentName != s.name ||
-                (v.studentMatricula ?? '') != s.matricula) {
-              needsRegeneration = true;
-              break;
-            }
-          }
-        }
-      }
-
-      if (needsRegeneration) {
-        variants = _randomizerService.generateVariants(
-          examId: widget.examId,
-          questions: questions,
-          sameExamForEveryone: widget.sameExamForEveryone,
-          students: students,
-          classId: widget.classIds.isNotEmpty ? widget.classIds.first : null,
-          className: widget.classNames.isNotEmpty ? widget.classNames.first : null,
-          variantCount: _variantCount,
-          shuffleQuestions: _shuffleQuestions,
-          shuffleAlternatives: _shuffleAlternatives,
+        students = await _classRepository.getStudentsForClasses(
+          classIds: widget.classIds,
+          classNames: widget.classNames,
         );
-        try {
-          await _examRepository.saveVariants(widget.examId, variants);
-        } catch (_) {}
-      } else if (widget.sameExamForEveryone &&
-          const [1, 2, 4].contains(variants.length)) {
-        _variantCount = variants.length;
       }
+
+      // Variantes injetadas (testes) são usadas como estão. No app, as
+      // variantes são sincronizadas pelo repositório, que nunca altera as
+      // provas já geradas enquanto modo, semente e questões não mudarem.
+      final variants = widget.initialVariants != null &&
+              widget.initialVariants!.isNotEmpty
+          ? widget.initialVariants!
+          : await _examRepository.syncVariants(
+              examId: widget.examId,
+              questions: questions,
+            );
 
       if (!mounted) return;
       setState(() {
         _questions = questions;
         _students = students;
-        _variants = variants;
+        _variants = _variantsForCurrentStudents(variants, students);
         _isLoading = false;
       });
     } catch (error) {
@@ -191,39 +164,70 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
     }
   }
 
+  /// Nos modos por aluno, lista/imprime só as provas dos alunos que estão
+  /// hoje nas turmas (variantes de alunos removidos continuam salvas para
+  /// que folhas já impressas ainda sejam reconhecidas na correção).
+  List<ExamVariant> _variantsForCurrentStudents(
+    List<ExamVariant> variants,
+    List<StudentRecord> students,
+  ) {
+    if (!widget.applicationMode.perStudent || students.isEmpty) return variants;
+    final ids = students.map((s) => s.id).toSet();
+    final filtered =
+        variants.where((v) => v.studentId == null || ids.contains(v.studentId)).toList();
+    return filtered.isEmpty ? variants : filtered;
+  }
+
   Future<void> _regerarVariantes() async {
     if (_questions.isEmpty) return;
+
+    final confirmed = await AppDialog.confirm(
+      context: context,
+      title: 'Reembaralhar a prova?',
+      message:
+          'Será feito um novo sorteio da ordem das questões/alternativas. '
+          'Folhas e cadernos já impressos desta prova deixarão de valer e '
+          'precisarão ser impressos novamente.',
+      confirmLabel: 'Reembaralhar',
+      destructive: true,
+    );
+    if (!mounted || confirmed != true) return;
+
     setState(() => _isLoading = true);
-
-    final newSeed = DateTime.now().microsecondsSinceEpoch;
-    final variants = _randomizerService.generateVariants(
-      examId: widget.examId,
-      questions: _questions,
-      sameExamForEveryone: widget.sameExamForEveryone,
-      students: _students,
-      classId: widget.classIds.isNotEmpty ? widget.classIds.first : null,
-      className: widget.classNames.isNotEmpty ? widget.classNames.first : null,
-      variantCount: _variantCount,
-      shuffleQuestions: _shuffleQuestions,
-      shuffleAlternatives: _shuffleAlternatives,
-      seed: newSeed,
-    );
-
     try {
-      await _examRepository.saveVariants(widget.examId, variants);
-    } catch (_) {}
+      List<ExamVariant> variants;
+      if (widget.initialVariants != null && widget.initialVariants!.isNotEmpty) {
+        variants = _randomizerService.generateVariantsForMode(
+          examId: widget.examId,
+          questions: _questions,
+          mode: widget.applicationMode,
+          students: _students,
+          classId: widget.classIds.isNotEmpty ? widget.classIds.first : null,
+          className: widget.classNames.isNotEmpty ? widget.classNames.first : null,
+          seed: DateTime.now().microsecondsSinceEpoch,
+        );
+      } else {
+        variants = await _examRepository.syncVariants(
+          examId: widget.examId,
+          questions: _questions,
+          reshuffle: true,
+        );
+      }
 
-    if (!mounted) return;
-    setState(() {
-      _variants = variants;
-      _isLoading = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${variants.length} variante(s) gerada(s) com sucesso!'),
-      ),
-    );
+      if (!mounted) return;
+      setState(() {
+        _variants = _variantsForCurrentStudents(variants, _students);
+        _isLoading = false;
+      });
+      AppSnackBar.success(
+        context,
+        'Novo sorteio salvo: ${_variants.length} variante(s). Imprima as folhas novamente.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      AppSnackBar.error(context, 'Não foi possível reembaralhar: $error');
+    }
   }
 
   Future<Uint8List> _buildPdfBytes() {
@@ -311,18 +315,10 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Caderno editável ($fileName) exportado com sucesso!'),
-        ),
-      );
+      AppSnackBar.success(context, 'Caderno editável ($fileName) exportado com sucesso!');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Não foi possível exportar o arquivo .doc: $error'),
-        ),
-      );
+      AppSnackBar.error(context, 'Não foi possível exportar o arquivo .doc: $error');
     }
   }
 
@@ -334,15 +330,7 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Variantes e Impressão PDF'),
-        actions: [
-          if (!_isLoading && _questions.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.shuffle),
-              tooltip: 'Reembaralhar variantes',
-              onPressed: _regerarVariantes,
-            ),
-        ],
+        title: const Text('Variantes e impressão'),
       ),
       body: SafeArea(
         child: _isLoading
@@ -369,9 +357,7 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
                         children: [
                           Text(
                             widget.examTitle,
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: theme.textTheme.headlineSmall,
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -379,72 +365,35 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
                             style: TextStyle(color: colorScheme.onSurfaceVariant),
                           ),
                           const SizedBox(height: 20),
-                          if (widget.sameExamForEveryone) ...[
-                            Text(
-                              'Quantidade de variantes (Cadernos)',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            SegmentedButton<int>(
-                              segments: const [
-                                ButtonSegment(value: 1, label: Text('1 (A)')),
-                                ButtonSegment(value: 2, label: Text('2 (A-B)')),
-                                ButtonSegment(value: 4, label: Text('4 (A-D)')),
-                              ],
-                              selected: {_variantCount},
-                              onSelectionChanged: (selection) {
-                                setState(() => _variantCount = selection.first);
-                                _regerarVariantes();
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                          ],
                           Text(
-                            'Opções de embaralhamento e identificação',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            'Aplicação da prova',
+                            style: theme.textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
                           AppCard(
                             padding: EdgeInsets.zero,
                             child: Column(
                               children: [
-                                SwitchListTile.adaptive(
-                                  value: _shuffleQuestions,
-                                  title: const Text('Embaralhar ordem das questões'),
-                                  subtitle: const Text(
-                                    'Altera a sequência das questões em cada variante.',
+                                ListTile(
+                                  leading: Icon(
+                                    widget.applicationMode.perStudent
+                                        ? AppIcons.shuffle
+                                        : AppIcons.exams,
+                                    color: colorScheme.primary,
                                   ),
-                                  onChanged: (val) {
-                                    setState(() => _shuffleQuestions = val);
-                                    _regerarVariantes();
-                                  },
+                                  title: Text(widget.applicationMode.label),
+                                  subtitle: Text(_modeSummary),
                                 ),
-                                const Divider(height: 1),
-                                SwitchListTile.adaptive(
-                                  value: _shuffleAlternatives,
-                                  title: const Text('Embaralhar alternativas (A–E)'),
-                                  subtitle: const Text(
-                                    'Permuta a ordem das alternativas mantendo o gabarito sincronizado.',
-                                  ),
-                                  onChanged: (val) {
-                                    setState(() => _shuffleAlternatives = val);
-                                    _regerarVariantes();
-                                  },
-                                ),
-                                if (widget.sameExamForEveryone &&
+                                if (!widget.applicationMode.perStudent &&
                                     _students.isNotEmpty) ...[
                                   const Divider(height: 1),
                                   SwitchListTile.adaptive(
                                     value: _nominalSheetsPerStudent,
                                     title: const Text(
-                                      'Folhas OMR nominais por aluno',
+                                      'Folhas de resposta com nome do aluno',
                                     ),
                                     subtitle: Text(
-                                      'Gera ${_students.length} folha(s) de resposta identificadas com nome, matrícula e QR Code individual de cada aluno.',
+                                      'Gera ${_students.length} folha(s) com nome, matrícula e QR Code de cada aluno.',
                                     ),
                                     onChanged: (val) {
                                       setState(
@@ -456,12 +405,21 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          if (_modeShuffles)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: _regerarVariantes,
+                                icon: const Icon(AppIcons.shuffle, size: 18),
+                                label: const Text('Reembaralhar agora'),
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           Text(
                             'Documento para impressão',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: theme.textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
                           RadioGroup<ExamPdfDocumentType>(
@@ -505,32 +463,22 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
                           const SizedBox(height: 20),
                           AppButton(
                             label: 'Visualizar e Imprimir PDF',
-                            icon: Icons.picture_as_pdf_outlined,
+                            icon: AppIcons.print,
                             expanded: true,
                             onPressed: _abrirVisualizadorPdf,
                           ),
                           const SizedBox(height: 10),
                           AppButton(
                             label: 'Exportar Prova Editável (.doc)',
-                            icon: Icons.description_outlined,
+                            icon: AppIcons.exams,
                             variant: AppButtonVariant.secondary,
                             expanded: true,
                             onPressed: _exportarCadernoDoc,
                           ),
-                          const SizedBox(height: 10),
-                          AppButton(
-                            label: 'Reembaralhar questões e alternativas',
-                            icon: Icons.shuffle,
-                            variant: AppButtonVariant.secondary,
-                            expanded: true,
-                            onPressed: _regerarVariantes,
-                          ),
                           const SizedBox(height: 24),
                           Text(
                             'Gabaritos por Variante (${_variants.length})',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: theme.textTheme.titleMedium,
                           ),
                           const SizedBox(height: 10),
                           for (final variant in _variants) ...[
@@ -568,7 +516,7 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
                                         ),
                                       ),
                                       Icon(
-                                        Icons.qr_code_2,
+                                        AppIcons.qrCode,
                                         size: 20,
                                         color: colorScheme.primary,
                                       ),

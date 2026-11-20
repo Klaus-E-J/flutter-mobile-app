@@ -11,6 +11,7 @@ import '../../../features/classes/data/class_repository.dart';
 import '../../../features/correction/models/omr_layout_spec.dart';
 import '../../../features/correction/services/exam_grading_service.dart';
 import '../../../features/correction/services/omr_image_service.dart';
+import '../../../features/correction/services/sheet_qr_validator.dart';
 import '../../../features/exams/models/exam_variant.dart';
 import '../../../features/exams/services/exam_randomizer_service.dart';
 import '../provas/models/questao_model.dart';
@@ -18,6 +19,8 @@ import 'leitura_qr_screen.dart';
 import 'models/correcao_models.dart';
 import 'resultado_correcao_screen.dart';
 import 'widgets/camera_placeholder.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Tela de leitura OMR das folhas de respostas e correção automática (Step 2/2 — N3-04 e N3-05).
 ///
@@ -41,6 +44,7 @@ class LeituraGabaritoScreen extends StatefulWidget {
     this.resultadosIniciais = const [],
     this.onPickSheetImage,
     this.autoConfirmReview = false,
+    this.allowSimulatedCapture = false,
   });
 
   final ProvaCorrecao prova;
@@ -54,6 +58,11 @@ class LeituraGabaritoScreen extends StatefulWidget {
   final List<ResultadoAluno> resultadosIniciais;
   final Future<Uint8List?> Function()? onPickSheetImage;
   final bool autoConfirmReview;
+
+  /// Permite gerar uma folha simulada (marcações inventadas) no lugar da
+  /// câmera. **Somente para testes automatizados**: no app nunca é ativado,
+  /// pois produziria notas falsas para alunos reais.
+  final bool allowSimulatedCapture;
 
   @override
   State<LeituraGabaritoScreen> createState() => _LeituraGabaritoScreenState();
@@ -114,34 +123,25 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
   void _initVariants() {
     if (widget.variants != null && widget.variants!.isNotEmpty) {
       _availableVariants = widget.variants!;
-    } else {
-      final qs = widget.questions != null && widget.questions!.isNotEmpty
-          ? widget.questions!
-          : List<Questao>.generate(
-              widget.prova.totalQuestoes > 0 ? widget.prova.totalQuestoes : 5,
-              (i) => Questao(
-                id: 'q_${i + 1}',
-                enunciado: 'Questão ${i + 1}',
-                alternativas: [
-                  Alternativa(id: 'a', texto: 'A', correta: i % 4 == 0),
-                  Alternativa(id: 'b', texto: 'B', correta: i % 4 == 1),
-                  Alternativa(id: 'c', texto: 'C', correta: i % 4 == 2),
-                  Alternativa(id: 'd', texto: 'D', correta: i % 4 == 3),
-                  Alternativa(id: 'e', texto: 'E'),
-                ],
-              ),
-            );
-      _availableVariants = _randomizer.generateVariants(
+    } else if (widget.questions != null && widget.questions!.isNotEmpty) {
+      // Só gera a partir das questões reais da prova. Nunca inventa gabarito.
+      _availableVariants = _randomizer.generateVariantsForMode(
         examId: widget.prova.id,
-        questions: qs,
-        sameExamForEveryone: !widget.prova.provaIndividual,
+        questions: widget.questions!,
+        mode: widget.prova.modoAplicacao,
         students: widget.students ?? const [],
         classId: widget.prova.classId,
         className: widget.prova.turma,
       );
+    } else {
+      _availableVariants = const [];
     }
 
-    _currentVariant = widget.activeVariant ?? _availableVariants.first;
+    if (widget.activeVariant != null) {
+      _currentVariant = widget.activeVariant!;
+    } else if (_availableVariants.isNotEmpty) {
+      _currentVariant = _availableVariants.first;
+    }
   }
 
   @override
@@ -191,9 +191,13 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
     }
 
     if (widget.students != null && widget.students!.isNotEmpty) {
-      final lastIndex = widget.students!.length - 1;
-      final index = _provasLidas > lastIndex ? lastIndex : _provasLidas;
-      return widget.students![index];
+      // Sugere o primeiro aluno que ainda não foi corrigido nesta sessão.
+      final corrigidos =
+          _resultadosCapturados.map((r) => r.studentId).whereType<String>().toSet();
+      for (final s in widget.students!) {
+        if (!corrigidos.contains(s.id)) return s;
+      }
+      return widget.students!.last;
     }
 
     return StudentRecord(
@@ -257,6 +261,15 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
   /// através do motor de visão computacional `OmrImageService`.
   Future<void> _capturarFolhaCameraOuSintetica() async {
     if (_limiteAtingido) return;
+
+    final cameraPronta = _useLiveCamera &&
+        _cameraController != null &&
+        _cameraController!.value.isInitialized;
+    if (!cameraPronta && !widget.allowSimulatedCapture) {
+      // Sem câmera, nunca gera folha simulada: liga a câmera.
+      await _toggleLiveCamera();
+      return;
+    }
 
     setState(() {
       _status = LeituraStatus.processando;
@@ -369,32 +382,40 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
     }
   }
 
-  Future<void> _processarResultadoScan(OmrSheetScanResult scanResult) async {
-    // Se o QR Code foi lido na imagem, sincroniza automaticamente a variante e o aluno (folhas nominais)!
-    if (scanResult.qrPayload != null) {
-      final qr = scanResult.qrPayload!;
-      final matched = _availableVariants
-          .where((v) => v.id == qr.variantId)
-          .toList();
-      ExamVariant baseVariant =
-          matched.isNotEmpty ? matched.first : _currentVariant;
+  void _recusarFolha(String message) {
+    _errosLeitura++;
+    setState(() {
+      _status = LeituraStatus.erro;
+      _feedbackText = message;
+      _feedbackIsError = true;
+    });
+  }
 
-      if (qr.studentId != null && qr.studentId!.isNotEmpty) {
-        final matchedStudent = (widget.students ?? const <StudentRecord>[])
-            .where((s) => s.id == qr.studentId)
-            .toList();
-        _currentVariant = baseVariant.copyWith(
-          studentId: qr.studentId,
-          studentName: matchedStudent.isNotEmpty
-              ? matchedStudent.first.name
-              : baseVariant.studentName,
-          studentMatricula: matchedStudent.isNotEmpty
-              ? matchedStudent.first.matricula
-              : baseVariant.studentMatricula,
-        );
-      } else {
-        _currentVariant = baseVariant;
+  Future<void> _processarResultadoScan(OmrSheetScanResult scanResult) async {
+    // Sem os 4 marcadores, a posição das bolhas não é confiável: recusa.
+    final sheetError = SheetQrValidator.sheetError(scanResult);
+    if (sheetError != null) {
+      _recusarFolha(sheetError);
+      return;
+    }
+
+    // Se o QR Code foi lido, ele precisa ser desta prova/turma. Nunca usa
+    // outra variante como "plano B".
+    if (scanResult.qrPayload != null) {
+      final match = SheetQrValidator.match(
+        payload: scanResult.qrPayload!,
+        examId: widget.prova.id,
+        variants: _availableVariants,
+        students: widget.students ?? const [],
+      );
+      if (!match.isOk) {
+        _recusarFolha(match.error!);
+        return;
       }
+      _currentVariant = match.variant!;
+    } else if (scanResult.rawQrText != null) {
+      _recusarFolha('QR Code inválido. Use uma folha gerada pelo Avalia Pro.');
+      return;
     }
 
     final initialMarks = <int, List<String>>{
@@ -403,7 +424,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
     };
 
     if (widget.autoConfirmReview) {
-      _registrarCorrecaoConfirmada(
+      await _registrarCorrecaoConfirmada(
         student: _estudanteAtual,
         markedLettersByQuestion: initialMarks,
       );
@@ -429,37 +450,64 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
       return;
     }
 
-    _registrarCorrecaoConfirmada(
+    await _registrarCorrecaoConfirmada(
       student: confirmed.student,
       markedLettersByQuestion: confirmed.marks,
     );
   }
 
-  void _registrarCorrecaoConfirmada({
+  Future<void> _registrarCorrecaoConfirmada({
     required StudentRecord student,
     required Map<int, List<String>> markedLettersByQuestion,
-  }) {
+  }) async {
     final gradeResult = _gradingService.gradeFromMarkedLetters(
       variant: _currentVariant,
       markedLettersByQuestion: markedLettersByQuestion,
       annulledQuestions: _currentVariantAnnulledQuestions,
     );
 
-    _provasLidas++;
-    _resultadosCapturados.add(
-      ResultadoAluno(
-        studentId: student.id,
-        nomeAluno: student.name,
-        acertos: gradeResult.correctCount,
-        totalQuestoes: gradeResult.totalQuestions,
-        variantId: gradeResult.variantId,
-        variantCode: gradeResult.variantCode,
-        emBranco: gradeResult.blankCount,
-        invalidas: gradeResult.invalidMultipleCount,
-        notaFinal10: gradeResult.finalGrade,
-        answers: gradeResult.answers,
-      ),
+    final novoResultado = ResultadoAluno(
+      studentId: student.id,
+      nomeAluno: student.name,
+      acertos: gradeResult.correctCount,
+      totalQuestoes: gradeResult.totalQuestions,
+      variantId: gradeResult.variantId,
+      variantCode: gradeResult.variantCode,
+      emBranco: gradeResult.blankCount,
+      invalidas: gradeResult.invalidMultipleCount,
+      notaFinal10: gradeResult.finalGrade,
+      answers: gradeResult.answers,
     );
+
+    // O mesmo aluno não pode entrar duas vezes na mesma correção.
+    final indiceExistente =
+        _resultadosCapturados.indexWhere((r) => r.studentId == student.id);
+    if (indiceExistente >= 0) {
+      final anterior = _resultadosCapturados[indiceExistente];
+      final substituir = await AppDialog.confirm(
+        context: context,
+        title: 'Aluno já corrigido nesta sessão',
+        message:
+            'A folha de ${student.name} já foi lida (nota ${anterior.nota10.toStringAsFixed(1)}). '
+            'Substituir pela nova leitura (nota ${gradeResult.finalGrade.toStringAsFixed(1)})?',
+        confirmLabel: 'Substituir',
+        cancelLabel: 'Manter a anterior',
+      );
+      if (!mounted) return;
+      if (substituir != true) {
+        setState(() {
+          _status = LeituraStatus.aguardando;
+          _feedbackText =
+              'Nova leitura descartada: ${student.name} já tinha sido corrigido(a).';
+          _feedbackIsError = false;
+        });
+        return;
+      }
+      _resultadosCapturados[indiceExistente] = novoResultado;
+    } else {
+      _provasLidas++;
+      _resultadosCapturados.add(novoResultado);
+    }
 
     // Restaura a variante compartilhada base caso a folha anterior tenha sido nominal
     if (!widget.prova.provaIndividual) {
@@ -554,9 +602,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                     children: [
                       Text(
                         'Revisão OMR e Correção (${_currentVariant.label})',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: theme.textTheme.titleLarge,
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -725,7 +771,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                                 student: selectedStudent,
                                 marks: editableMarks,
                               )),
-                              icon: const Icon(Icons.check),
+                              icon: const Icon(AppIcons.confirm),
                               label: const Text('Confirmar Nota'),
                             ),
                           ),
@@ -781,6 +827,22 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    if (_availableVariants.isEmpty && widget.activeVariant == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Correção OMR • 2/2')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Não foi possível carregar o gabarito desta prova. '
+              'Volte e tente iniciar a correção novamente.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -790,13 +852,13 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
         appBar: AppBar(
           title: const Text('Correção OMR • 2/2'),
           leading: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(AppIcons.close),
             onPressed: _confirmarCancelamento,
           ),
           actions: [
             IconButton(
               icon: Icon(
-                _useLiveCamera ? Icons.videocam_off_outlined : Icons.videocam_outlined,
+                _useLiveCamera ? AppIcons.cameraOff : AppIcons.cameraOn,
               ),
               tooltip: _useLiveCamera
                   ? 'Desativar câmera nativa'
@@ -818,9 +880,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
             children: [
               Text(
                 'Leitura OMR das Folhas',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.headlineSmall,
               ),
               const SizedBox(height: 4),
               Text(
@@ -851,7 +911,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                           width: 28,
                           height: 28,
                           decoration: const BoxDecoration(
-                            color: Color(0xFF16A34A),
+                            color: AppColors.success,
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -875,9 +935,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                   children: [
                     Text(
                       _textoProgresso,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: theme.textTheme.titleSmall,
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -898,7 +956,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: _feedbackIsError
                         ? colorScheme.error
-                        : const Color(0xFF16A34A),
+                        : AppColors.success,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -909,15 +967,23 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                     ? 'Todas as folhas processadas'
                     : _status == LeituraStatus.processando
                         ? 'Processando OMR...'
-                        : (_useLiveCamera
+                        : _useLiveCamera
                             ? 'Capturar foto da câmera (OMR)'
-                            : 'Simular Leitura OMR (${_currentVariant.code})'),
+                            : widget.allowSimulatedCapture
+                                ? 'Simular Leitura OMR (${_currentVariant.code})'
+                                : (_initializingCamera
+                                    ? 'Abrindo câmera...'
+                                    : 'Ativar câmera'),
                 icon: _limiteAtingido || _status == LeituraStatus.processando
                     ? null
-                    : Icons.document_scanner_outlined,
+                    : (_useLiveCamera || widget.allowSimulatedCapture
+                        ? AppIcons.correction
+                        : AppIcons.cameraOn),
                 isLoading: _status == LeituraStatus.processando,
                 expanded: true,
-                onPressed: _status != LeituraStatus.processando && !_limiteAtingido
+                onPressed: _status != LeituraStatus.processando &&
+                        !_limiteAtingido &&
+                        !_initializingCamera
                     ? _capturarFolhaCameraOuSintetica
                     : null,
               ),
@@ -925,7 +991,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
               if (!_limiteAtingido)
                 AppButton(
                   label: 'Carregar imagem de folha (PNG/JPG)',
-                  icon: Icons.upload_file_outlined,
+                  icon: AppIcons.pickImage,
                   variant: AppButtonVariant.secondary,
                   expanded: true,
                   onPressed: _status != LeituraStatus.processando
@@ -936,7 +1002,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
                 const SizedBox(height: 10),
                 AppButton(
                   label: 'Ver resultados e concluir ($_provasLidas lida(s))',
-                  icon: Icons.check_circle_outline,
+                  icon: AppIcons.confirm,
                   variant: AppButtonVariant.text,
                   expanded: true,
                   onPressed:

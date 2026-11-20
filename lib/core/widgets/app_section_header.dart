@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// Título de seção padrão: `titleMedium` + descrição opcional em tom suave.
 class AppSectionHeader extends StatelessWidget {
   const AppSectionHeader({
     super.key,
@@ -14,13 +15,19 @@ class AppSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final titleBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        Text(title, style: theme.textTheme.titleMedium),
         if (subtitle != null) ...[
           const SizedBox(height: 4),
-          Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            subtitle!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
       ],
     );

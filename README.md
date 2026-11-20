@@ -29,7 +29,7 @@ O **Avalia Pro** é uma aplicação mobile e multiplataforma desenvolvida em **F
 - Edição de perfil do professor (`Nome de exibição` e `Escola / Instituição`);
 - CRUD completo de Turmas e Alunos + Importação de alunos via arquivo `.csv`/`.xlsx`/`.xls` com remoção de duplicados;
 - CRUD completo de Provas e Questões (até 30 questões por folha OMR, alternativas `A` a `E`) + Assistente de **Gabarito Rápido (Prova Externa)**;
-- Geração de variantes embaralhadas (cadernos A, B, C, D ou provas individuais por aluno) e folhas OMR nominais por aluno;
+- Quatro modos de aplicação da prova (questões e alternativas por aluno, só questões por aluno, só alternativas por aluno ou mesma prova para todos) e folhas OMR nominais por aluno;
 - Exportação de cadernos de prova em **PDF** (sem quebra de questão entre páginas) e **Word (`.doc`)** editável;
 - Correção automatizada por câmera/imagem com leitura de QR Code, retificação de perspectiva e revisão interativa;
 - Salvamento automático de submissões ao concluir a correção, com histórico e exclusão de resultados;

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/questao_model.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/app_delete_button.dart';
 
 /// Widget para exibir e editar uma alternativa individual.
 ///
@@ -103,8 +105,8 @@ class _AlternativaItemState extends State<AlternativaItem> {
                 padding: const EdgeInsets.all(8),
                 child: Icon(
                   isCorreta
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
+                      ? AppIcons.radioOn
+                      : AppIcons.radioOff,
                   size: 20,
                   color: isCorreta
                       ? colorScheme.primary
@@ -117,7 +119,6 @@ class _AlternativaItemState extends State<AlternativaItem> {
             Text(
               '${_indiceParaLetra(widget.indice)})',
               style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
                 color: isCorreta ? colorScheme.primary : colorScheme.onSurface,
               ),
             ),
@@ -144,14 +145,10 @@ class _AlternativaItemState extends State<AlternativaItem> {
 
             // Botão de remover alternativa
             if (widget.podeRemover)
-              IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                onPressed: widget.onRemover,
+              AppDeleteButton(
                 tooltip: 'Remover alternativa',
-                visualDensity: VisualDensity.compact,
-                style: IconButton.styleFrom(
-                  foregroundColor: colorScheme.error,
-                ),
+                onPressed: widget.onRemover,
+                compact: true,
               ),
           ],
         ),

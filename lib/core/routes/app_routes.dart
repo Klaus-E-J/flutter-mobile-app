@@ -2,15 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../features/access/access_screen.dart';
 import '../../features/access/auth_gate.dart';
-import '../../features/classes/classes_screen.dart';
 import '../../features/config/config_screen.dart';
-import '../../features/correction/correction_screen.dart';
-import '../../features/dashboard/dashboard_screen.dart';
-import '../../features/exams/exams_screen.dart';
 import '../../features/export/export_screen.dart';
-import '../../features/results/results_screen.dart';
 import '../../features/statistics/statistics_screen.dart';
 import '../../features/ui_preview/ui_preview_screen.dart';
+import '../navigation/app_shell.dart';
+import '../navigation/app_tabs.dart';
 
 abstract final class AppRoutes {
   static const root = '/';
@@ -26,48 +23,22 @@ abstract final class AppRoutes {
   static const uiPreview = '/ui-preview';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
-    switch (settings.name) {
-      case root:
-        return _page(const AuthGate());
-
-      case access:
-        return _page(const AccessScreen());
-
-      case dashboard:
-        return _page(const DashboardScreen());
-
-      case classes:
-        return _page(const ClassesScreen());
-
-      case exams:
-        return _page(const ExamsScreen());
-
-      case correction:
-        return _page(const CorrectionScreen());
-
-      case results:
-        return _page(const ResultsScreen());
-
-      case statistics:
-        return _page(const StatisticsScreen());
-
-      case export:
-        return _page(const ExportScreen());
-
-      case config:
-        return _page(const ConfigScreen());
-
-      case uiPreview:
-        return _page(const UiPreviewScreen());
-
-      default:
-        return _page(
-          const Scaffold(body: Center(child: Text('Página não encontrada'))),
-        );
-    }
-  }
-
-  static MaterialPageRoute<dynamic> _page(Widget child) {
-    return MaterialPageRoute(builder: (_) => child);
+    final Widget page = switch (settings.name) {
+      root => const AuthGate(),
+      access => const AccessScreen(),
+      // As abas principais vivem dentro do AppShell. Para trocar de aba a
+      // partir de uma tela, use AppTabs.go(context, tab) em vez destas rotas.
+      dashboard => const AppShell(),
+      classes => const AppShell(initialTab: AppTab.classes),
+      exams => const AppShell(initialTab: AppTab.exams),
+      correction => const AppShell(initialTab: AppTab.correction),
+      results => const AppShell(initialTab: AppTab.results),
+      statistics => const StatisticsScreen(),
+      export => const ExportScreen(),
+      config => const ConfigScreen(),
+      uiPreview => const UiPreviewScreen(),
+      _ => const Scaffold(body: Center(child: Text('Página não encontrada'))),
+    };
+    return MaterialPageRoute(builder: (_) => page, settings: settings);
   }
 }

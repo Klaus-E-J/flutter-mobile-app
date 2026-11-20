@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../core/navigation/app_tabs.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_error_state.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../screens/correcao/models/correcao_models.dart';
 import '../correction/data/submission_repository.dart';
 import 'exam_results_screen.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_delete_button.dart';
+import '../../core/widgets/app_snack_bar.dart';
+import '../../core/widgets/app_dialog.dart';
 
 /// Central de Resultados integrada com o Cloud Firestore.
 ///
@@ -21,27 +28,12 @@ class ResultsScreen extends StatelessWidget {
     BuildContext context,
     ExamCorrectionSummary summary,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Excluir resultados?'),
-        content: Text(
-          'Tem certeza que deseja excluir todas as ${summary.studentCount} correções de "${summary.examTitle}" (${summary.className})?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
+      title: 'Excluir resultados?',
+      message: 'Tem certeza que deseja excluir todas as ${summary.studentCount} correções de "${summary.examTitle}" (${summary.className})?',
+      confirmLabel: 'Excluir',
+      destructive: true,
     );
     if (!context.mounted || confirmed != true) return;
 
@@ -51,14 +43,10 @@ class ResultsScreen extends StatelessWidget {
         classId: summary.classId.isNotEmpty ? summary.classId : null,
       );
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Resultados excluídos com sucesso.')),
-      );
+      AppSnackBar.success(context, 'Resultados excluídos com sucesso.');
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível excluir os resultados: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível excluir os resultados: $error');
     }
   }
 
@@ -76,56 +64,46 @@ class ResultsScreen extends StatelessWidget {
           stream: _submissionRepository.watchExamSummaries(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text('Erro ao carregar resultados: ${snapshot.error}'),
-                ),
+              return AppErrorState(
+                title: 'Não foi possível carregar os resultados',
+                description: '${snapshot.error}',
               );
             }
 
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
+            if (!snapshot.hasData) return const AppLoading();
 
             final summaries = snapshot.data!;
             if (summaries.isEmpty) {
               return AppEmptyState(
-                icon: Icons.assignment_outlined,
+                icon: AppIcons.results,
                 title: 'Nenhum resultado ainda',
                 description:
-                    'Os resultados aparecerão aqui após você concluir uma correção.',
+                    'Os resultados aparecem aqui assim que você concluir uma correção.',
                 action: FilledButton.icon(
-                  onPressed: () =>
-                      Navigator.pushNamed(context, AppRoutes.correction),
-                  icon: const Icon(Icons.adjust_outlined),
-                  label: const Text('Iniciar correção'),
+                  onPressed: () => AppTabs.go(context, AppTab.correction),
+                  icon: const Icon(AppIcons.correction),
+                  label: const Text('Ir para Corrigir'),
                 ),
               );
             }
 
             return ListView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               children: [
                 Text(
-                  'Correções realizadas',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${summaries.length} avaliação(ões) corrigida(s)',
-                  style: TextStyle(
+                  summaries.length == 1
+                      ? '1 avaliação corrigida'
+                      : '${summaries.length} avaliações corrigidas',
+                  style: theme.textTheme.bodyMedium?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: _AtalhoCard(
-                        icon: Icons.bar_chart_outlined,
+                        icon: AppIcons.statistics,
                         label: 'Estatísticas',
                         onTap: () => Navigator.pushNamed(
                           context,
@@ -136,7 +114,7 @@ class ResultsScreen extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _AtalhoCard(
-                        icon: Icons.upload_outlined,
+                        icon: AppIcons.export,
                         label: 'Exportar',
                         onTap: () => Navigator.pushNamed(
                           context,
@@ -147,12 +125,7 @@ class ResultsScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  'Histórico',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text('Histórico', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 12),
                 for (final summary in summaries) ...[
                   _SummaryCard(
@@ -236,9 +209,7 @@ class _AtalhoCard extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(context).textTheme.titleSmall,
           ),
         ],
       ),
@@ -278,9 +249,7 @@ class _SummaryCard extends StatelessWidget {
               children: [
                 Text(
                   summary.examTitle,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -307,7 +276,6 @@ class _SummaryCard extends StatelessWidget {
               Text(
                 '${media.toStringAsFixed(0)}%',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
                   color: corMedia,
                 ),
               ),
@@ -319,17 +287,9 @@ class _SummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          IconButton(
-            icon: Icon(
-              Icons.delete_outline,
-              color: colorScheme.error,
-              size: 20,
-            ),
-            tooltip: 'Excluir resultados desta avaliação',
-            onPressed: onDelete,
-          ),
+          AppDeleteButton(tooltip: 'Excluir resultados desta avaliação', onPressed: onDelete),
           Icon(
-            Icons.chevron_right,
+            AppIcons.chevron,
             color: colorScheme.onSurfaceVariant,
           ),
         ],

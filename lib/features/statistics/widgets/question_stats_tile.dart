@@ -55,7 +55,7 @@ class QuestionStatsTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Q${stats.questionNumber} — correta ${stats.correctAlternative}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
               if (effectiveMostMarked.isNotEmpty)

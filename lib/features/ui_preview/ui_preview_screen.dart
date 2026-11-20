@@ -8,6 +8,7 @@ import '../../core/widgets/app_error_state.dart';
 import '../../core/widgets/app_header.dart';
 import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_text_field.dart';
+import '../../core/theme/app_icons.dart';
 
 class UiPreviewScreen extends StatefulWidget {
   const UiPreviewScreen({super.key});
@@ -72,7 +73,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                   children: [
                     AppButton(
                       label: 'Com ícone',
-                      icon: Icons.add,
+                      icon: AppIcons.add,
                       onPressed: () {},
                     ),
                     AppButton(
@@ -100,7 +101,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                 const SizedBox(height: 16),
                 const AppTextField(
                   label: 'Código de acesso',
-                  prefixIcon: Icons.key_outlined,
+                  prefixIcon: AppIcons.key,
                 ),
                 const SizedBox(height: 16),
                 const AppTextField(
@@ -119,7 +120,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                 AppCard(
                   child: Row(
                     children: [
-                      const Icon(Icons.class_outlined),
+                      const Icon(AppIcons.classes),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -134,7 +135,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right),
+                      const Icon(AppIcons.chevron),
                     ],
                   ),
                   onTap: () {},
@@ -157,7 +158,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
                   child: AppEmptyState(
                     title: 'Nenhuma prova cadastrada',
                     description: 'Crie uma prova para começar.',
-                    icon: Icons.description_outlined,
+                    icon: AppIcons.exams,
                   ),
                 ),
 
@@ -186,7 +187,7 @@ class _UiPreviewScreenState extends State<UiPreviewScreen> {
             title: 'Diálogo',
             child: AppButton(
               label: 'Abrir diálogo',
-              icon: Icons.open_in_new,
+              icon: AppIcons.openExternal,
               onPressed: () {
                 AppDialog.show(
                   context: context,

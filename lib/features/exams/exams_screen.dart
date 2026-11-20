@@ -1,19 +1,36 @@
 import 'package:flutter/material.dart';
 
-import '../../core/routes/app_routes.dart';
-import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_error_state.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_status_pill.dart';
 import '../../screens/provas/prova_questoes_screen.dart';
 import 'data/exam_repository.dart';
 import 'exam_form_screen.dart';
 import 'exam_print_screen.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_snack_bar.dart';
+import '../../core/widgets/app_dialog.dart';
 
-class ExamsScreen extends StatelessWidget {
+class ExamsScreen extends StatefulWidget {
   const ExamsScreen({super.key});
 
-  static final ExamRepository _repository = ExamRepository();
+  @override
+  State<ExamsScreen> createState() => _ExamsScreenState();
+}
 
-  void _openExam(BuildContext context, ExamRecord exam) {
+class _ExamsScreenState extends State<ExamsScreen> {
+  final ExamRepository _repository = ExamRepository();
+  late Stream<List<ExamRecord>> _examsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _examsStream = _repository.watchExams();
+  }
+
+  void _openExam(ExamRecord exam) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -22,13 +39,13 @@ class ExamsScreen extends StatelessWidget {
           initialName: exam.title,
           initialClassIds: exam.classIds,
           initialClasses: exam.classNames,
-          initialSameExamForEveryone: exam.sameExamForEveryone,
+          initialApplicationMode: exam.applicationMode,
         ),
       ),
     );
   }
 
-  void _openQuestions(BuildContext context, ExamRecord exam) {
+  void _openQuestions(ExamRecord exam) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -40,7 +57,7 @@ class ExamsScreen extends StatelessWidget {
     );
   }
 
-  void _openPrint(BuildContext context, ExamRecord exam) {
+  void _openPrint(ExamRecord exam) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -49,256 +66,208 @@ class ExamsScreen extends StatelessWidget {
           examTitle: exam.title,
           classIds: exam.classIds,
           classNames: exam.classNames,
-          sameExamForEveryone: exam.sameExamForEveryone,
+          applicationMode: exam.applicationMode,
         ),
       ),
     );
   }
 
-  Future<void> _confirmDeleteExam(BuildContext context, ExamRecord exam) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Excluir prova?'),
-        content: Text(
-          'Tem certeza que deseja excluir a prova "${exam.title}", suas questões e variantes?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
-    );
-    if (!context.mounted || confirmed != true) return;
-
-    try {
-      await _repository.deleteExam(exam.id);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Prova excluída com sucesso.')),
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível excluir a prova: $error')),
-      );
-    }
-  }
-
-  void _openCreateExam(BuildContext context) {
+  void _openCreateExam() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ExamFormScreen()),
     );
   }
 
+  Future<void> _confirmDeleteExam(ExamRecord exam) async {
+    final confirmed = await AppDialog.confirm(
+      context: context,
+      title: 'Excluir prova?',
+      message: 'Tem certeza que deseja excluir a prova "${exam.title}", suas questões e variantes?',
+      confirmLabel: 'Excluir',
+      destructive: true,
+    );
+    if (!mounted || confirmed != true) return;
+
+    try {
+      await _repository.deleteExam(exam.id);
+      if (!mounted) return;
+      AppSnackBar.success(context, 'Prova excluída com sucesso.');
+    } catch (error) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'Não foi possível excluir a prova: $error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Provas', style: TextStyle(fontWeight: FontWeight.bold)),
+      appBar: AppBar(title: const Text('Provas')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openCreateExam,
+        icon: const Icon(AppIcons.add),
+        label: const Text('Nova prova'),
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text('Minhas provas', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text('Crie e gerencie suas avaliações', style: TextStyle(color: colorScheme.onSurfaceVariant)),
-            const SizedBox(height: 16),
-            AppButton(
-              label: 'Nova prova',
-              icon: Icons.add,
-              expanded: true,
-              onPressed: () => _openCreateExam(context),
-            ),
-            const SizedBox(height: 22),
-            Text('Provas cadastradas', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 12),
-            StreamBuilder<List<ExamRecord>>(
-              stream: _repository.watchExams(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Text('Erro ao carregar provas: ${snapshot.error}'),
+        child: StreamBuilder<List<ExamRecord>>(
+          stream: _examsStream,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return AppErrorState(
+                title: 'Não foi possível carregar as provas',
+                description: '${snapshot.error}',
+                onRetry: () => setState(
+                  () => _examsStream = _repository.watchExams(),
+                ),
+              );
+            }
+            if (!snapshot.hasData) return const AppLoading();
+
+            final exams = snapshot.data!;
+            if (exams.isEmpty) {
+              return const AppEmptyState(
+                icon: AppIcons.exams,
+                title: 'Nenhuma prova ainda',
+                description:
+                    'Toque em “Nova prova” para criar uma avaliação e gerar as folhas de resposta.',
+              );
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 96),
+              itemCount: exams.length + 1,
+              separatorBuilder: (_, index) =>
+                  SizedBox(height: index == 0 ? 12 : 10),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Text(
+                    exams.length == 1 ? '1 prova' : '${exams.length} provas',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   );
                 }
-                if (!snapshot.hasData) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                final exams = snapshot.data!;
-                if (exams.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text('Nenhuma prova cadastrada. Crie uma prova para começar.'),
-                  );
-                }
-                return Column(
-                  children: [
-                    for (final exam in exams) ...[
-                      AppCard(
-                        onTap: () => _openExam(context, exam),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(exam.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${exam.questionCount} questões • ${exam.classNames.length} turmas',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            PopupMenuButton<String>(
-                              tooltip: 'Opções da prova',
-                              onSelected: (value) {
-                                switch (value) {
-                                  case 'edit':
-                                    _openExam(context, exam);
-                                    break;
-                                  case 'questions':
-                                    _openQuestions(context, exam);
-                                    break;
-                                  case 'print':
-                                    _openPrint(context, exam);
-                                    break;
-                                  case 'delete':
-                                    _confirmDeleteExam(context, exam);
-                                    break;
-                                }
-                              },
-                              itemBuilder: (ctx) => const [
-                                PopupMenuItem(
-                                  value: 'edit',
-                                  child: ListTile(
-                                    leading: Icon(Icons.edit_outlined),
-                                    title: Text('Editar prova'),
-                                    contentPadding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'questions',
-                                  child: ListTile(
-                                    leading: Icon(Icons.quiz_outlined),
-                                    title: Text('Questões / Gabarito'),
-                                    contentPadding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'print',
-                                  child: ListTile(
-                                    leading: Icon(Icons.picture_as_pdf_outlined),
-                                    title: Text('Variantes e Impressão'),
-                                    contentPadding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: ListTile(
-                                    leading: Icon(Icons.delete_outline, color: Colors.red),
-                                    title: Text('Excluir prova', style: TextStyle(color: Colors.red)),
-                                    contentPadding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                  ],
+                final exam = exams[index - 1];
+                return _ExamCard(
+                  exam: exam,
+                  onTap: () => _openExam(exam),
+                  onQuestions: () => _openQuestions(exam),
+                  onPrint: () => _openPrint(exam),
+                  onDelete: () => _confirmDeleteExam(exam),
                 );
               },
-            ),
-          ],
+            );
+          },
         ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 2,
-        onDestinationSelected: (index) {
-          switch (index) {
-            case 0: Navigator.pushReplacementNamed(context, AppRoutes.dashboard); break;
-            case 1: Navigator.pushReplacementNamed(context, AppRoutes.classes); break;
-            case 2: break;
-            case 3: Navigator.pushReplacementNamed(context, AppRoutes.correction); break;
-            case 4: _showMaisModal(context); break;
-          }
-        },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Início'),
-          NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: 'Turmas'),
-          NavigationDestination(icon: Icon(Icons.description_outlined), selectedIcon: Icon(Icons.description), label: 'Provas'),
-          NavigationDestination(icon: Icon(Icons.adjust_outlined), selectedIcon: Icon(Icons.adjust), label: 'Corrigir'),
-          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Mais'),
-        ],
       ),
     );
   }
 }
 
-void _showMaisModal(BuildContext context) {
-  showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (ctx) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Mais opções', style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.assignment_outlined),
-              title: const Text('Resultados'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () { Navigator.pop(ctx); Navigator.pushNamed(context, AppRoutes.results); },
+enum _ExamAction { questions, print, delete }
+
+class _ExamCard extends StatelessWidget {
+  const _ExamCard({
+    required this.exam,
+    required this.onTap,
+    required this.onQuestions,
+    required this.onPrint,
+    required this.onDelete,
+  });
+
+  final ExamRecord exam;
+  final VoidCallback onTap;
+  final VoidCallback onQuestions;
+  final VoidCallback onPrint;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final hasQuestions = exam.questionCount > 0;
+    final classes = exam.classNames.isEmpty
+        ? 'Sem turma vinculada'
+        : exam.classNames.join(', ');
+
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exam.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  classes,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                AppStatusPill(
+                  icon: hasQuestions ? AppIcons.questions : AppIcons.warning,
+                  label: hasQuestions
+                      ? '${exam.questionCount} questões'
+                      : 'Sem questões',
+                  tone: hasQuestions ? AppStatusTone.neutral : AppStatusTone.warning,
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.bar_chart_outlined),
-              title: const Text('Estatísticas'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () { Navigator.pop(ctx); Navigator.pushNamed(context, AppRoutes.statistics); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.upload_outlined),
-              title: const Text('Exportar'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () { Navigator.pop(ctx); Navigator.pushNamed(context, AppRoutes.export); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings_outlined),
-              title: const Text('Configurações'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () { Navigator.pop(ctx); Navigator.pushNamed(context, AppRoutes.config); },
-            ),
-          ],
-        ),
+          ),
+          PopupMenuButton<_ExamAction>(
+            tooltip: 'Mais ações',
+            onSelected: (action) => switch (action) {
+              _ExamAction.questions => onQuestions(),
+              _ExamAction.print => onPrint(),
+              _ExamAction.delete => onDelete(),
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: _ExamAction.questions,
+                child: ListTile(
+                  leading: Icon(AppIcons.questions),
+                  title: Text('Questões e gabarito'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: _ExamAction.print,
+                child: ListTile(
+                  leading: Icon(AppIcons.print),
+                  title: Text('Variantes e impressão'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: _ExamAction.delete,
+                child: ListTile(
+                  leading: Icon(AppIcons.delete, color: colorScheme.error),
+                  title: Text(
+                    'Excluir prova',
+                    style: TextStyle(color: colorScheme.error),
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
-    ),
-  );
+    );
+  }
 }

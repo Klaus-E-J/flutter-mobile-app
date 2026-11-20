@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_button.dart';
+import '../theme/app_icons.dart';
 
 class AppErrorState extends StatelessWidget {
   const AppErrorState({
@@ -24,7 +25,7 @@ class AppErrorState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.error_outline,
+              AppIcons.error,
               size: 48,
               color: colorScheme.error,
             ),
@@ -48,7 +49,7 @@ class AppErrorState extends StatelessWidget {
               const SizedBox(height: 20),
               AppButton(
                 label: 'Tentar novamente',
-                icon: Icons.refresh,
+                icon: AppIcons.retry,
                 variant: AppButtonVariant.secondary,
                 onPressed: onRetry,
               ),

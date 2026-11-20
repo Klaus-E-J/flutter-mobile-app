@@ -5,6 +5,8 @@ import '../models/statistics_models.dart';
 import '../widgets/grade_distribution_chart.dart';
 import '../widgets/question_stats_tile.dart';
 import '../widgets/stat_card.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/app_loading.dart';
 
 /// View "Desempenho da turma" — aba Turma.
 ///
@@ -111,7 +113,7 @@ class _ClassStatsViewState extends State<ClassStatsView> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _stats == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoading();
     }
 
     if (_errorMessage != null) {
@@ -136,9 +138,7 @@ class _ClassStatsViewState extends State<ClassStatsView> {
         // Título
         Text(
           'Desempenho da turma',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.headlineSmall,
         ),
         const SizedBox(height: 4),
         Text(
@@ -154,7 +154,7 @@ class _ClassStatsViewState extends State<ClassStatsView> {
         DropdownButtonFormField<String>(
           initialValue: _selectedExam,
           decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.description_outlined),
+            prefixIcon: Icon(AppIcons.exams),
           ),
           hint: const Text('Selecione a prova'),
           items: _exams.map((exam) {
@@ -204,9 +204,7 @@ class _ClassStatsViewState extends State<ClassStatsView> {
         // Distribuição de notas
         Text(
           'Distribuição de notas',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
         GradeDistributionChart(data: stats.gradeDistribution),
@@ -216,9 +214,7 @@ class _ClassStatsViewState extends State<ClassStatsView> {
         // Alternativas mais marcadas
         Text(
           'Alternativas mais marcadas por questão',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
         for (final question in stats.questionStats) ...[

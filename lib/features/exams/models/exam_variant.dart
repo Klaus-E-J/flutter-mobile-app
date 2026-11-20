@@ -172,6 +172,7 @@ class ExamVariant {
     this.studentMatricula,
     this.classId,
     this.className,
+    this.configFingerprint,
   });
 
   final String id;
@@ -188,6 +189,12 @@ class ExamVariant {
   final String? studentMatricula;
   final String? classId;
   final String? className;
+
+  /// Impressão digital da configuração que gerou esta variante (modo de
+  /// aplicação + semente + conteúdo das questões). Enquanto ela não mudar, a
+  /// variante salva é reaproveitada sem alterações, para que as folhas já
+  /// impressas continuem valendo.
+  final String? configFingerprint;
 
   String get qrPayload => ExamQrPayload(
         examId: examId,
@@ -207,6 +214,7 @@ class ExamVariant {
     String? studentMatricula,
     String? classId,
     String? className,
+    String? configFingerprint,
   }) {
     return ExamVariant(
       id: id ?? this.id,
@@ -220,6 +228,7 @@ class ExamVariant {
       studentMatricula: studentMatricula ?? this.studentMatricula,
       classId: classId ?? this.classId,
       className: className ?? this.className,
+      configFingerprint: configFingerprint ?? this.configFingerprint,
     );
   }
 
@@ -258,6 +267,7 @@ class ExamVariant {
       studentMatricula: map['studentMatricula'] as String?,
       classId: map['classId'] as String?,
       className: map['className'] as String?,
+      configFingerprint: map['configFingerprint'] as String?,
     );
   }
 
@@ -275,6 +285,7 @@ class ExamVariant {
       if (studentMatricula != null) 'studentMatricula': studentMatricula,
       if (classId != null) 'classId': classId,
       if (className != null) 'className': className,
+      if (configFingerprint != null) 'configFingerprint': configFingerprint,
     };
   }
 }

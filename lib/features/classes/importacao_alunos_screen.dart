@@ -8,6 +8,9 @@ import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_loading.dart';
 import 'data/class_repository.dart';
 import 'services/student_import_service.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_delete_button.dart';
+import '../../core/widgets/app_dialog.dart';
 
 /// Dados de um arquivo selecionado para importação.
 typedef PickedImportFile = ({String name, Uint8List bytes});
@@ -124,28 +127,15 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
   Future<void> _confirmarImportacao() async {
     if (_selectedStudents.isEmpty) return;
 
-    final confirmar = await showDialog<bool>(
+    final confirmar = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmar importação'),
-        content: Text(
-          'Serão adicionados ${_selectedStudents.length} aluno(s) à turma '
+      title: 'Confirmar importação',
+      message: 'Serão adicionados ${_selectedStudents.length} aluno(s) à turma '
           '"${widget.nomeTurma}". Deseja continuar?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Importar'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Importar',
     );
 
-    if (!(confirmar ?? false) || !mounted) return;
+    if (!confirmar || !mounted) return;
 
     setState(() {
       _isLoading = true;
@@ -192,26 +182,15 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
       canPop: _step == _ImportStep.selecao || _step == _ImportStep.sucesso,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        final result = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Cancelar importação?'),
-            content: const Text(
-              'Se sair agora, os dados selecionados serão descartados.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Continuar'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Sair'),
-              ),
-            ],
-          ),
-        );
-        if ((result ?? false) && context.mounted) {
+        final result = await AppDialog.confirm(
+      context: context,
+      title: 'Cancelar importação?',
+      message: 'Se sair agora, os dados selecionados serão descartados.',
+      confirmLabel: 'Sair',
+      cancelLabel: 'Continuar',
+      destructive: true,
+    );
+        if (result && context.mounted) {
           Navigator.of(context).pop();
         }
       },
@@ -252,9 +231,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
       children: [
         Text(
           'Importar lista de alunos',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.headlineSmall,
         ),
         const SizedBox(height: 4),
         Text(
@@ -268,16 +245,14 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
           child: Column(
             children: [
               Icon(
-                Icons.upload_file_outlined,
+                AppIcons.import,
                 size: 48,
                 color: colorScheme.primary,
               ),
               const SizedBox(height: 16),
               Text(
                 'Selecionar arquivo',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
               Text(
@@ -297,9 +272,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
         const SizedBox(height: 24),
         Text(
           'Formato esperado',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
         AppCard(
@@ -310,19 +283,19 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
               _buildFormatoItem(
                 'Colunas suportadas',
                 'Nome completo (obrigatório), Matrícula/RA (opcional) e E-mail (opcional)',
-                Icons.person_outlined,
+                AppIcons.student,
               ),
               const SizedBox(height: 10),
               _buildFormatoItem(
                 'Cabeçalho e delimitador',
                 'Cabeçalho detectado automaticamente; suporta vírgula (,), ponto e vírgula (;) ou Excel (.xlsx)',
-                Icons.table_rows_outlined,
+                AppIcons.spreadsheet,
               ),
               const SizedBox(height: 10),
               _buildFormatoItem(
                 'Validação de duplicados',
                 'Nomes ou matrículas repetidas são filtrados automaticamente antes de importar',
-                Icons.verified_outlined,
+                AppIcons.success,
               ),
             ],
           ),
@@ -342,7 +315,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text(label, style: Theme.of(context).textTheme.titleSmall),
               Text(
                 descricao,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -371,9 +344,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             children: [
               Text(
                 'Prévia da importação',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.headlineSmall,
               ),
               const SizedBox(height: 4),
               Text(
@@ -389,7 +360,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.people_outlined,
+                      AppIcons.student,
                       color: colorScheme.primary,
                     ),
                     const SizedBox(width: 12),
@@ -417,7 +388,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
                       Row(
                         children: [
                           Icon(
-                            Icons.info_outline,
+                            AppIcons.info,
                             size: 18,
                             color: colorScheme.error,
                           ),
@@ -531,15 +502,8 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
                               ],
                             ),
                           ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.close,
-                              size: 18,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            tooltip: 'Remover da importação',
-                            onPressed: () => _removerAlunoDaPrevia(index),
-                          ),
+                          AppDeleteButton(tooltip: 'Remover da importação', onPressed: () => _removerAlunoDaPrevia(index),
+  compact: true),
                         ],
                       ),
                     );
@@ -554,7 +518,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
               children: [
                 AppButton(
                   label: 'Confirmar importação',
-                  icon: Icons.check,
+                  icon: AppIcons.confirm,
                   expanded: true,
                   onPressed:
                       _selectedStudents.isNotEmpty ? _confirmarImportacao : null,
@@ -592,7 +556,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.check,
+                AppIcons.confirm,
                 size: 40,
                 color: colorScheme.onPrimaryContainer,
               ),
@@ -600,9 +564,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             const SizedBox(height: 24),
             Text(
               'Importação concluída!',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             Text(
@@ -616,7 +578,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             const SizedBox(height: 32),
             AppButton(
               label: 'Voltar para a turma',
-              icon: Icons.arrow_back,
+              icon: AppIcons.back,
               expanded: true,
               onPressed: () => Navigator.of(context).pop(true),
             ),
@@ -637,16 +599,14 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.error_outline,
+              AppIcons.error,
               size: 56,
               color: colorScheme.error,
             ),
             const SizedBox(height: 16),
             Text(
               'Falha na importação',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             Text(
@@ -662,7 +622,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             if (_selectedStudents.isNotEmpty) ...[
               AppButton(
                 label: 'Tentar novamente',
-                icon: Icons.refresh,
+                icon: AppIcons.retry,
                 expanded: true,
                 onPressed: _confirmarImportacao,
               ),
@@ -671,7 +631,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             AppButton(
               label: 'Escolher outro arquivo',
               variant: AppButtonVariant.secondary,
-              icon: Icons.folder_open_outlined,
+              icon: AppIcons.import,
               expanded: true,
               onPressed: _reiniciar,
             ),

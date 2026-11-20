@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/correcao_models.dart';
+import '../../../core/theme/app_icons.dart';
 
 /// Widget reutilizável que simula o viewfinder de câmera.
 ///
@@ -102,14 +103,14 @@ class CameraPlaceholder extends StatelessWidget {
 
       case LeituraStatus.sucesso:
         return Icon(
-          Icons.check_circle,
+          AppIcons.success,
           size: 56,
           color: colorScheme.primary,
         );
 
       case LeituraStatus.erro:
         return Icon(
-          Icons.error_outline,
+          AppIcons.error,
           size: 56,
           color: colorScheme.error,
         );

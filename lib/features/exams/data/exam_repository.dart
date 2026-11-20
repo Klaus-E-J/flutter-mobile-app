@@ -1,8 +1,12 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/services/firebase_service.dart';
 import '../../../screens/provas/models/questao_model.dart';
 import '../../classes/data/class_repository.dart';
+import '../models/exam_application_mode.dart';
 import '../models/exam_variant.dart';
 import '../services/exam_randomizer_service.dart';
 
@@ -12,7 +16,7 @@ class ExamRecord {
     required this.title,
     required this.classIds,
     required this.classNames,
-    required this.sameExamForEveryone,
+    required this.applicationMode,
     required this.questionCount,
   });
 
@@ -20,8 +24,11 @@ class ExamRecord {
   final String title;
   final List<String> classIds;
   final List<String> classNames;
-  final bool sameExamForEveryone;
+  final ExamApplicationMode applicationMode;
   final int questionCount;
+
+  /// Atalho legado: `true` quando todos recebem a mesma prova.
+  bool get sameExamForEveryone => applicationMode.sameExamForEveryone;
 
   factory ExamRecord.fromDocument(
     DocumentSnapshot<Map<String, dynamic>> document,
@@ -32,7 +39,10 @@ class ExamRecord {
       title: data['title'] as String? ?? '',
       classIds: (data['classIds'] as List<dynamic>? ?? const []).whereType<String>().toList(),
       classNames: (data['classNames'] as List<dynamic>? ?? const []).whereType<String>().toList(),
-      sameExamForEveryone: data['sameExamForEveryone'] as bool? ?? true,
+      applicationMode: ExamApplicationMode.fromStored(
+        data['applicationMode'],
+        legacySameForEveryone: data['sameExamForEveryone'] as bool?,
+      ),
       questionCount: (data['questionCount'] as num?)?.toInt() ?? 0,
     );
   }
@@ -63,7 +73,7 @@ class ExamRepository {
     required String title,
     required List<String> classIds,
     required List<String> classNames,
-    required bool sameExamForEveryone,
+    required ExamApplicationMode applicationMode,
   }) async {
     final trimmedTitle = title.trim();
     final reference = id == null ? _exams.doc() : _exams.doc(id);
@@ -73,7 +83,9 @@ class ExamRepository {
       'className': classNames.isNotEmpty ? classNames.first : '',
       'classIds': classIds,
       'classNames': classNames,
-      'sameExamForEveryone': sameExamForEveryone,
+      'applicationMode': applicationMode.id,
+      // Campo legado, mantido para versões antigas do app.
+      'sameExamForEveryone': applicationMode.sameExamForEveryone,
       'updatedAt': FieldValue.serverTimestamp(),
     };
     if (id == null) {
@@ -280,43 +292,95 @@ class ExamRepository {
     });
   }
 
-  /// Gera e salva as variantes da prova com base na configuração (Mesma prova ou Por aluno).
+  /// Mantido por compatibilidade: apenas sincroniza (não reembaralha).
   Future<List<ExamVariant>> regenerateVariantsForExam({
     required String examId,
     List<Questao>? questions,
-    int variantCount = 4,
+  }) {
+    return syncVariants(examId: examId, questions: questions);
+  }
+
+  /// Garante que a prova tenha variantes para todos os alunos das turmas
+  /// vinculadas, **sem alterar variantes já existentes** enquanto o modo de
+  /// aplicação, a semente e as questões continuarem os mesmos.
+  ///
+  /// - Renomear a prova, trocar turmas ou incluir/remover alunos nunca muda
+  ///   a prova (ordem e gabarito) dos alunos que já tinham variante.
+  /// - Variantes de todas as turmas são consideradas juntas: corrigir uma
+  ///   turma não apaga as variantes das outras.
+  /// - [reshuffle] = `true` sorteia uma nova semente (ação explícita do
+  ///   professor), que fica salva na prova e passa a valer daí em diante.
+  Future<List<ExamVariant>> syncVariants({
+    required String examId,
+    List<Questao>? questions,
+    bool reshuffle = false,
   }) async {
-    final exam = await getExam(examId);
+    final examRef = _exams.doc(examId);
+    final examDoc = await examRef.get();
+    if (!examDoc.exists) return const [];
+    final exam = ExamRecord.fromDocument(examDoc);
     final examQuestions = questions ?? await getQuestions(examId);
     if (examQuestions.isEmpty) return const [];
 
-    final sameForEveryone = exam?.sameExamForEveryone ?? true;
-    final students = <StudentRecord>[];
-    String? firstClassId;
-    String? firstClassName;
-
-    if (!sameForEveryone && exam != null && exam.classIds.isNotEmpty) {
-      final classRepo = ClassRepository();
-      firstClassId = exam.classIds.first;
-      firstClassName = exam.classNames.isNotEmpty ? exam.classNames.first : null;
-      for (final classId in exam.classIds) {
-        final classStudents = await classRepo.getStudents(classId);
-        students.addAll(classStudents);
-      }
+    final mode = exam.applicationMode;
+    var seed = (examDoc.data()?['variantSeed'] as num?)?.toInt() ??
+        ExamRandomizerService.defaultSeedFor(examId);
+    if (reshuffle) {
+      seed = Random.secure().nextInt(1 << 31);
+      await examRef.update({
+        'variantSeed': seed,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     }
 
+    final students = mode.perStudent && exam.classIds.isNotEmpty
+        ? await ClassRepository().getStudentsForClasses(
+            classIds: exam.classIds,
+            classNames: exam.classNames,
+          )
+        : const <StudentRecord>[];
+
     const randomizer = ExamRandomizerService();
-    final variants = randomizer.generateVariants(
+    final generated = randomizer.generateVariantsForMode(
       examId: examId,
       questions: examQuestions,
-      sameExamForEveryone: sameForEveryone,
+      mode: mode,
       students: students,
-      classId: firstClassId,
-      className: firstClassName,
-      variantCount: variantCount,
+      classId: exam.classIds.isNotEmpty ? exam.classIds.first : null,
+      className: exam.classNames.isNotEmpty ? exam.classNames.first : null,
+      seed: seed,
+    );
+    final fingerprint = ExamRandomizerService.configFingerprint(
+      mode: mode,
+      seed: seed,
+      questions: examQuestions,
     );
 
-    await saveVariants(examId, variants);
-    return variants;
+    final existing = await getVariants(examId);
+    final merged = randomizer.mergeWithExisting(
+      generated: generated,
+      existing: existing,
+      fingerprint: fingerprint,
+      // Variantes de versões anteriores só são reaproveitadas enquanto o
+      // professor não pedir um novo embaralhamento.
+      legacyQuestions: reshuffle ? null : examQuestions,
+    );
+
+    if (!_sameVariants(existing, merged)) {
+      await saveVariants(examId, merged);
+    }
+    return merged;
+  }
+
+  static bool _sameVariants(List<ExamVariant> a, List<ExamVariant> b) {
+    if (a.length != b.length) return false;
+    String encode(List<ExamVariant> list) {
+      final sorted = [...list]..sort((x, y) => x.id.compareTo(y.id));
+      return jsonEncode([
+        for (final v in sorted) {'id': v.id, ...v.toMap()},
+      ]);
+    }
+
+    return encode(a) == encode(b);
   }
 }

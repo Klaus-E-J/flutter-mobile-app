@@ -1,20 +1,19 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 import '../../core/routes/app_routes.dart';
 import '../../core/services/firebase_service.dart';
-import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../access/data/auth_repository.dart';
 import '../access/data/user_profile.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_snack_bar.dart';
 
 /// Tela de Configurações (FE-14).
 ///
 /// Apresenta dados reais do perfil do professor logado via Firebase Auth
-/// e Cloud Firestore, permitindo gerenciar o código de acesso, editar perfil e encerrar a sessão.
+/// e Cloud Firestore, permitindo editar o perfil e encerrar a sessão.
 class ConfigScreen extends StatefulWidget {
   const ConfigScreen({super.key, this.authRepository});
 
@@ -32,8 +31,6 @@ class _ConfigScreenState extends State<ConfigScreen> {
   bool _isLoadingProfile = true;
 
   String _accessCode = 'PROF-8421';
-  bool _isCodeRevealed = false;
-  bool _isAccessExpanded = false;
   bool _isAboutExpanded = false;
 
   @override
@@ -118,75 +115,6 @@ class _ConfigScreenState extends State<ConfigScreen> {
     }
   }
 
-  // ─── Lógica ──────────────────────────────────────────────────────────────
-
-  String get _maskedCode {
-    final prefix = _accessCode.contains('-')
-        ? _accessCode.split('-').first
-        : _accessCode.substring(0, min(4, _accessCode.length));
-    return '$prefix-••••';
-  }
-
-  void _handleToggleReveal() {
-    if (_isCodeRevealed) {
-      setState(() => _isCodeRevealed = false);
-      return;
-    }
-
-    AppDialog.show(
-      context: context,
-      title: 'Visualizar código de acesso',
-      message:
-          'Este código dá acesso completo aos seus dados. '
-          'Deseja exibi-lo na tela?',
-      confirmLabel: 'Visualizar',
-      cancelLabel: 'Cancelar',
-      onConfirm: () {
-        setState(() => _isCodeRevealed = true);
-        _showFeedback('Código exibido.', isSuccess: true);
-      },
-    );
-  }
-
-  void _handleGenerateNewCode() {
-    AppDialog.show(
-      context: context,
-      title: 'Gerar novo código',
-      message:
-          'O código atual deixará de funcionar imediatamente. '
-          'Esta ação não pode ser desfeita. Deseja continuar?',
-      confirmLabel: 'Gerar novo código',
-      cancelLabel: 'Cancelar',
-      onConfirm: () async {
-        final newCode = AuthRepository.generateAccessCode();
-
-        try {
-          if (_userProfile != null) {
-            final updated = _userProfile!.copyWith(
-              accessCode: newCode,
-              updatedAt: DateTime.now(),
-            );
-            await _authRepository.updateProfile(updated);
-            _userProfile = updated;
-          }
-
-          if (mounted) {
-            setState(() {
-              _accessCode = newCode;
-              _isCodeRevealed = true;
-            });
-            _showFeedback('Novo código gerado com sucesso.', isSuccess: true);
-          }
-        } catch (e) {
-          _showFeedback(
-            'Não foi possível atualizar o código: $e',
-            isSuccess: false,
-          );
-        }
-      },
-    );
-  }
-
   void _handleSignOut() {
     AppDialog.show(
       context: context,
@@ -194,6 +122,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
       message: 'Tem certeza que deseja encerrar sua sessão neste dispositivo?',
       confirmLabel: 'Sair da conta',
       cancelLabel: 'Cancelar',
+      destructive: true,
       onConfirm: () async {
         try {
           await _authRepository.signOut();
@@ -211,40 +140,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
 
   void _showFeedback(String message, {required bool isSuccess}) {
     if (!mounted) return;
-    final colorScheme = Theme.of(context).colorScheme;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor:
-              isSuccess ? colorScheme.primary : colorScheme.error,
-          content: Row(
-            children: [
-              Icon(
-                isSuccess
-                    ? Icons.check_circle_outline
-                    : Icons.error_outline,
-                color: isSuccess
-                    ? colorScheme.onPrimary
-                    : colorScheme.onError,
-                size: 20,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  message,
-                  style: TextStyle(
-                    color: isSuccess
-                        ? colorScheme.onPrimary
-                        : colorScheme.onError,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+    isSuccess
+        ? AppSnackBar.success(context, message)
+        : AppSnackBar.error(context, message);
   }
 
   // ─── Build ────────────────────────────────────────────────────────────────
@@ -267,38 +165,17 @@ class _ConfigScreenState extends State<ConfigScreen> {
               const SizedBox(height: 28),
 
               // Seção de dados
-              _buildSectionLabel('Preferências e dados'),
+              _buildSectionLabel('Dados'),
               const SizedBox(height: 12),
-
-              // Código de acesso (expansível)
-              _buildAccessCodeItem(),
-              const SizedBox(height: 10),
 
               // Firebase e sincronização (ativo)
               _buildMenuItem(
-                icon: Icons.cloud_done_outlined,
+                icon: AppIcons.cloudOn,
                 title: 'Firebase e sincronização em tempo real',
                 subtitle: FirebaseService.isInitialized
                     ? 'Conectado à nuvem'
                     : 'Modo local',
                 enabled: true,
-              ),
-              const SizedBox(height: 10),
-
-              // Exportação e dados
-              _buildMenuItem(
-                icon: Icons.file_download_outlined,
-                title: 'Exportação e dados',
-                onTap: () {
-                  Navigator.pushNamed(context, AppRoutes.export);
-                },
-              ),
-              const SizedBox(height: 10),
-
-              _buildMenuItem(
-                icon: Icons.tune_outlined,
-                title: 'Preferências de visualização',
-                enabled: false,
               ),
 
               const SizedBox(height: 28),
@@ -355,7 +232,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              Icons.school_outlined,
+              AppIcons.institution,
               color: colorScheme.onPrimaryContainer,
             ),
           ),
@@ -366,9 +243,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
               children: [
                 Text(
                   _isLoadingProfile ? 'Carregando perfil...' : displayName,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -389,7 +264,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.edit_outlined),
+            icon: const Icon(AppIcons.edit),
             tooltip: 'Editar perfil',
             onPressed: _handleEditProfile,
           ),
@@ -436,8 +311,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: enabled
                         ? colorScheme.onSurface
                         : colorScheme.outlineVariant,
@@ -447,8 +321,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -472,126 +345,10 @@ class _ConfigScreenState extends State<ConfigScreen> {
             )
           else if (onTap != null)
             Icon(
-              Icons.chevron_right,
+              AppIcons.chevron,
               color: colorScheme.outlineVariant,
               size: 20,
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAccessCodeItem() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppCard(
-          onTap: () => setState(
-            () => _isAccessExpanded = !_isAccessExpanded,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(
-                Icons.key_outlined,
-                size: 20,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Text(
-                  'Acesso e código institucional',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              Icon(
-                _isAccessExpanded
-                    ? Icons.expand_less
-                    : Icons.chevron_right,
-                color: Theme.of(context).colorScheme.outlineVariant,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-
-        AnimatedCrossFade(
-          firstChild: const SizedBox(width: double.infinity, height: 0),
-          secondChild: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: _buildAccessCodePanel(),
-          ),
-          crossFadeState: _isAccessExpanded
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
-          duration: const Duration(milliseconds: 200),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAccessCodePanel() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return AppCard(
-      color: colorScheme.surfaceContainerLow,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Código de acesso do professor',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Exibição do código
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: colorScheme.outlineVariant),
-            ),
-            child: SelectableText(
-              _isCodeRevealed ? _accessCode : _maskedCode,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  label: _isCodeRevealed ? 'Ocultar' : 'Visualizar',
-                  icon: _isCodeRevealed
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: _handleToggleReveal,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AppButton(
-                  label: 'Gerar novo',
-                  icon: Icons.refresh,
-                  onPressed: _handleGenerateNewCode,
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -608,21 +365,21 @@ class _ConfigScreenState extends State<ConfigScreen> {
           child: Row(
             children: [
               Icon(
-                Icons.info_outline,
+                AppIcons.info,
                 size: 20,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 14),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Sobre o aplicativo',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
               Icon(
                 _isAboutExpanded
-                    ? Icons.expand_less
-                    : Icons.chevron_right,
+                    ? AppIcons.expandLess
+                    : AppIcons.expandMore,
                 color: Theme.of(context).colorScheme.outlineVariant,
                 size: 20,
               ),
@@ -641,7 +398,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
               child: Row(
                 children: [
                   Icon(
-                    Icons.fact_check_outlined,
+                    AppIcons.brand,
                     color: Theme.of(context).colorScheme.primary,
                     size: 28,
                   ),
@@ -652,9 +409,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
                       Text(
                         'Avalia Pro',
                         style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                            .textTheme.titleMedium,
                       ),
                       Text(
                         'Versão $_appVersion',
@@ -691,7 +446,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
       child: Row(
         children: [
           Icon(
-            Icons.logout,
+            AppIcons.logout,
             size: 20,
             color: colorScheme.error,
           ),
@@ -706,7 +461,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
             ),
           ),
           Icon(
-            Icons.chevron_right,
+            AppIcons.chevron,
             color: colorScheme.error.withValues(alpha: 0.7),
             size: 20,
           ),

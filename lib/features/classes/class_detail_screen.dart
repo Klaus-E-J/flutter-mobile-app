@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_empty_state.dart';
 import '../../core/widgets/app_text_field.dart';
 import 'data/class_repository.dart';
 import 'importacao_alunos_screen.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_delete_button.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_snack_bar.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   const ClassDetailScreen({
@@ -54,9 +60,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível cadastrar o aluno: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível cadastrar o aluno: $error');
     } finally {
       if (mounted) setState(() => _addingStudent = false);
     }
@@ -83,39 +87,20 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         email: result.email,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aluno atualizado com sucesso.')),
-      );
+      AppSnackBar.success(context, 'Aluno atualizado com sucesso.');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível atualizar o aluno: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível atualizar o aluno: $error');
     }
   }
 
   Future<void> _confirmDeleteStudent(StudentRecord student) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remover aluno?'),
-        content: Text(
-          'Tem certeza que deseja remover "${student.name}" desta turma?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remover'),
-          ),
-        ],
-      ),
+      title: 'Remover aluno?',
+      message: 'Tem certeza que deseja remover "${student.name}" desta turma?',
+      confirmLabel: 'Remover',
+      destructive: true,
     );
     if (!mounted || confirmed != true) return;
 
@@ -125,14 +110,10 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         studentId: student.id,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aluno removido com sucesso.')),
-      );
+      AppSnackBar.success(context, 'Aluno removido com sucesso.');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível remover o aluno: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível remover o aluno: $error');
     }
   }
 
@@ -157,39 +138,20 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         _currentClassName = updated.name;
         _currentClassGrade = updated.grade;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Turma atualizada com sucesso.')),
-      );
+      AppSnackBar.success(context, 'Turma atualizada com sucesso.');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível atualizar a turma: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível atualizar a turma: $error');
     }
   }
 
   Future<void> _confirmDeleteClass() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Excluir turma?'),
-        content: Text(
-          'Tem certeza que deseja excluir a turma "$_currentClassName" e todos os seus alunos?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
+      title: 'Excluir turma?',
+      message: 'Tem certeza que deseja excluir a turma "$_currentClassName" e todos os seus alunos?',
+      confirmLabel: 'Excluir',
+      destructive: true,
     );
     if (!mounted || confirmed != true) return;
 
@@ -199,9 +161,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
       Navigator.pop(context);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível excluir a turma: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível excluir a turma: $error');
     }
   }
 
@@ -222,18 +182,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_currentClassName, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(_currentClassName),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit_outlined),
+            icon: const Icon(AppIcons.edit),
             tooltip: 'Editar turma',
             onPressed: _showEditClassDialog,
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Excluir turma',
-            onPressed: _confirmDeleteClass,
-          ),
+          AppDeleteButton(tooltip: 'Excluir turma', onPressed: _confirmDeleteClass),
         ],
       ),
       body: SafeArea(
@@ -249,36 +205,50 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               );
             }
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const AppLoading();
             }
             final students = snapshot.data!;
             return ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                Text('Alunos', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text('${students.length} alunos', style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  [
+                    if (_currentClassGrade.isNotEmpty) _currentClassGrade,
+                    students.length == 1 ? '1 aluno' : '${students.length} alunos',
+                  ].join(' • '),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: 16),
-                AppButton(
-                  label: _addingStudent ? 'Cadastrando...' : 'Adicionar aluno',
-                  icon: Icons.add,
-                  variant: AppButtonVariant.secondary,
-                  expanded: true,
-                  onPressed: _addingStudent ? null : _showAddStudentDialog,
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppButton(
+                        label: 'Adicionar',
+                        icon: AppIcons.addStudent,
+                        isLoading: _addingStudent,
+                        onPressed: _showAddStudentDialog,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AppButton(
+                        label: 'Importar',
+                        icon: AppIcons.import,
+                        variant: AppButtonVariant.secondary,
+                        onPressed: () => _openImportStudents(students),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                AppButton(
-                  label: 'Importar lista',
-                  icon: Icons.upload_file_outlined,
-                  variant: AppButtonVariant.text,
-                  expanded: true,
-                  onPressed: () => _openImportStudents(students),
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
                 if (students.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text('Nenhum aluno cadastrado nesta turma.'),
+                  const AppEmptyState(
+                    icon: AppIcons.student,
+                    title: 'Nenhum aluno nesta turma',
+                    description:
+                        'Adicione os alunos um a um ou importe uma planilha (CSV/Excel).',
                   ),
                 for (final student in students) ...[
                   AppCard(
@@ -289,7 +259,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(student.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                              Text(student.name, style: Theme.of(context).textTheme.titleSmall),
                               const SizedBox(height: 2),
                               Text(
                                 [
@@ -303,19 +273,11 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          icon: const Icon(AppIcons.edit),
                           tooltip: 'Editar aluno',
                           onPressed: () => _showEditStudentDialog(student),
                         ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.delete_outline,
-                            size: 20,
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                          tooltip: 'Remover aluno',
-                          onPressed: () => _confirmDeleteStudent(student),
-                        ),
+                        AppDeleteButton(tooltip: 'Remover aluno', onPressed: () => _confirmDeleteStudent(student)),
                       ],
                     ),
                   ),

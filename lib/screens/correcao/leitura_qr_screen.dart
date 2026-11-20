@@ -9,12 +9,16 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_dialog.dart';
 import '../../../features/classes/data/class_repository.dart';
 import '../../../features/correction/services/omr_image_service.dart';
+import '../../../features/correction/services/sheet_qr_validator.dart';
 import '../../../features/exams/models/exam_variant.dart';
 import '../../../features/exams/services/exam_randomizer_service.dart';
 import '../provas/models/questao_model.dart';
 import 'leitura_gabarito_screen.dart';
 import 'models/correcao_models.dart';
+import 'resultado_correcao_screen.dart';
 import 'widgets/camera_placeholder.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_icons.dart';
 
 /// Tela de leitura do QR Code da prova (Step 1/2 — N3-04).
 ///
@@ -71,37 +75,38 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
     final provided = widget.variants;
     if (provided != null && provided.isNotEmpty) {
       _availableVariants = provided;
-    } else {
-      final qs = widget.questions != null && widget.questions!.isNotEmpty
-          ? widget.questions!
-          : List<Questao>.generate(
-              widget.prova.totalQuestoes > 0 ? widget.prova.totalQuestoes : 5,
-              (i) => Questao(
-                id: 'q_${i + 1}',
-                enunciado: 'Questão ${i + 1}',
-                alternativas: [
-                  Alternativa(id: 'a', texto: 'A', correta: i % 4 == 0),
-                  Alternativa(id: 'b', texto: 'B', correta: i % 4 == 1),
-                  Alternativa(id: 'c', texto: 'C', correta: i % 4 == 2),
-                  Alternativa(id: 'd', texto: 'D', correta: i % 4 == 3),
-                  Alternativa(id: 'e', texto: 'E'),
-                ],
-              ),
-            );
-      _availableVariants = _randomizer.generateVariants(
+    } else if (widget.questions != null && widget.questions!.isNotEmpty) {
+      // Só gera a partir das questões reais da prova. Nunca inventa gabarito.
+      _availableVariants = _randomizer.generateVariantsForMode(
         examId: widget.prova.id,
-        questions: qs,
-        sameExamForEveryone: !widget.prova.provaIndividual,
+        questions: widget.questions!,
+        mode: widget.prova.modoAplicacao,
         students: widget.students ?? const [],
         classId: widget.prova.classId,
         className: widget.prova.turma,
       );
+    } else {
+      _availableVariants = const [];
+      return;
     }
 
-    final defaultIdx = widget.provasLidas < _availableVariants.length
-        ? widget.provasLidas
-        : 0;
-    _selectedVariant = _availableVariants[defaultIdx];
+    // Sugere a próxima prova ainda não corrigida nesta sessão.
+    final corrected = widget.resultadosAcumulados
+        .map((r) => r.studentId)
+        .whereType<String>()
+        .toSet();
+    _selectedVariant = _availableVariants.firstWhere(
+      (v) => v.studentId == null || !corrected.contains(v.studentId),
+      orElse: () => _availableVariants.first,
+    );
+  }
+
+  void _mostrarErro(String message) {
+    setState(() {
+      _status = LeituraStatus.erro;
+      _feedbackText = message;
+      _feedbackIsError = true;
+    });
   }
 
   @override
@@ -142,35 +147,21 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
   }) {
     final parsed = ExamQrPayload.tryParse(rawQr);
     if (parsed == null) {
-      setState(() {
-        _status = LeituraStatus.erro;
-        _feedbackText =
-            'QR Code inválido ("$rawQr"). Use uma folha gerada pelo Avalia Pro.';
-        _feedbackIsError = true;
-      });
+      _mostrarErro('QR Code inválido. Use uma folha gerada pelo Avalia Pro.');
       return;
     }
 
-    final matched = _availableVariants
-        .where((v) => v.id == parsed.variantId)
-        .toList();
-    ExamVariant chosenVariant =
-        matched.isNotEmpty ? matched.first : _selectedVariant;
-
-    if (parsed.studentId != null && parsed.studentId!.isNotEmpty) {
-      final matchedStudent = (widget.students ?? const <StudentRecord>[])
-          .where((s) => s.id == parsed.studentId)
-          .toList();
-      chosenVariant = chosenVariant.copyWith(
-        studentId: parsed.studentId,
-        studentName: matchedStudent.isNotEmpty
-            ? matchedStudent.first.name
-            : chosenVariant.studentName,
-        studentMatricula: matchedStudent.isNotEmpty
-            ? matchedStudent.first.matricula
-            : chosenVariant.studentMatricula,
-      );
+    final match = SheetQrValidator.match(
+      payload: parsed,
+      examId: widget.prova.id,
+      variants: _availableVariants,
+      students: widget.students ?? const [],
+    );
+    if (!match.isOk) {
+      _mostrarErro(match.error!);
+      return;
     }
+    final chosenVariant = match.variant!;
 
     setState(() {
       _selectedVariant = chosenVariant;
@@ -218,24 +209,21 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
         expectedQuestions: _selectedVariant.questions.length,
       );
 
-      if (scanResult.rawQrText != null) {
-        _processarQrCodeBruto(
-          scanResult.rawQrText!,
-          preScannedSheet: scanResult,
+      if (scanResult.rawQrText == null) {
+        // Sem QR legível não há como saber de quem é a folha: nunca
+        // presume a variante selecionada.
+        _mostrarErro(
+          SheetQrValidator.sheetError(scanResult) ?? SheetQrValidator.msgQrNotFound,
         );
-      } else {
-        // Imagem sem QR legível, mas com bolhas detectadas -> avança com a variante selecionada
-        setState(() {
-          _status = LeituraStatus.sucesso;
-          _feedbackText =
-              'Folha carregada (${_selectedVariant.label}). Avançando para revisão OMR.';
-          _feedbackIsError = false;
-        });
-        _avancarParaGabarito(
-          variant: _selectedVariant,
-          preScannedSheet: scanResult,
-        );
+        return;
       }
+      // QR lido. As respostas só são aproveitadas se a folha inteira foi
+      // detectada; senão o professor fotografa a folha no passo 2.
+      _processarQrCodeBruto(
+        scanResult.rawQrText!,
+        preScannedSheet:
+            SheetQrValidator.sheetError(scanResult) == null ? scanResult : null,
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -273,6 +261,22 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
     );
   }
 
+  bool get _temLeituras => widget.resultadosAcumulados.isNotEmpty;
+
+  /// Encerra a sessão com as folhas já lidas (ex.: alunos ausentes).
+  void _finalizar() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResultadoCorrecaoScreen(
+          prova: widget.prova,
+          resultados: widget.resultadosAcumulados,
+          totalErros: widget.errosLeitura,
+        ),
+      ),
+    );
+  }
+
   Future<void> _confirmarCancelamento() async {
     final msg = widget.provasLidas > 0
         ? 'Você já capturou ${widget.provasLidas} gabarito(s). '
@@ -299,6 +303,22 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    if (_availableVariants.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Correção • 1/2')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Não foi possível carregar o gabarito desta prova. '
+              'Volte e tente iniciar a correção novamente.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -308,19 +328,24 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
         appBar: AppBar(
           title: const Text('Correção • 1/2'),
           leading: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(AppIcons.close),
             onPressed: _confirmarCancelamento,
           ),
           actions: [
             IconButton(
               icon: Icon(
-                _useLiveCamera ? Icons.videocam_off_outlined : Icons.videocam_outlined,
+                _useLiveCamera ? AppIcons.cameraOff : AppIcons.cameraOn,
               ),
               tooltip: _useLiveCamera
                   ? 'Desativar câmera ao vivo'
                   : 'Ativar câmera ao vivo',
               onPressed: _toggleLiveCamera,
             ),
+            if (_temLeituras)
+              TextButton(
+                onPressed: _status == LeituraStatus.processando ? null : _finalizar,
+                child: const Text('Finalizar'),
+              ),
           ],
         ),
         body: SafeArea(
@@ -329,9 +354,7 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
             children: [
               Text(
                 'Identificar QR Code da Folha',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.headlineSmall,
               ),
               const SizedBox(height: 4),
               Text(
@@ -358,7 +381,7 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
                   label: 'QR CODE • ${_selectedVariant.code}',
                   status: _status,
                   icon: _status == LeituraStatus.aguardando
-                      ? const Icon(Icons.qr_code, color: Colors.white, size: 28)
+                      ? const Icon(AppIcons.qrCode, color: Colors.white, size: 28)
                       : null,
                 ),
               const SizedBox(height: 14),
@@ -406,7 +429,7 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: _feedbackIsError
                         ? colorScheme.error
-                        : const Color(0xFF16A34A),
+                        : AppColors.success,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -418,7 +441,7 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
                     : 'Confirmar QR Code (${_selectedVariant.code})',
                 icon: _status == LeituraStatus.processando
                     ? null
-                    : Icons.qr_code_scanner,
+                    : AppIcons.scanQr,
                 isLoading: _status == LeituraStatus.processando,
                 expanded: true,
                 onPressed: _status == LeituraStatus.processando
@@ -428,13 +451,25 @@ class _LeituraQrScreenState extends State<LeituraQrScreen> {
               const SizedBox(height: 10),
               AppButton(
                 label: 'Carregar imagem de folha (PNG/JPG)',
-                icon: Icons.image_search_outlined,
+                icon: AppIcons.pickImage,
                 variant: AppButtonVariant.secondary,
                 expanded: true,
                 onPressed: _status == LeituraStatus.processando
                     ? null
                     : _carregarImagemFolha,
               ),
+              if (_temLeituras) ...[
+                const SizedBox(height: 10),
+                AppButton(
+                  label:
+                      'Ver resultados e concluir (${widget.resultadosAcumulados.length} lida(s))',
+                  icon: AppIcons.confirm,
+                  variant: AppButtonVariant.text,
+                  expanded: true,
+                  onPressed:
+                      _status == LeituraStatus.processando ? null : _finalizar,
+                ),
+              ],
             ],
           ),
         ),
