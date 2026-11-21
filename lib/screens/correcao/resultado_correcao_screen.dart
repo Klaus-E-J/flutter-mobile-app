@@ -43,6 +43,12 @@ class _ResultadoCorrecaoScreenState extends State<ResultadoCorrecaoScreen> {
   /// IDs das submissões desta tela já gravadas.
   final Set<String> _idsSalvos = <String>{};
 
+  /// ID da submissão de cada item de [ResultadoCorrecaoScreen.resultados].
+  late final List<String> _recordIds = _buildRecords().map((r) => r.id).toList();
+
+  /// Submissões em que o professor escolheu manter a nota já salva.
+  final Set<String> _idsMantidos = <String>{};
+
   /// Alunos que já tinham nota salva e aguardam a decisão do professor.
   List<String> _conflitosPendentes = const [];
 
@@ -163,6 +169,7 @@ class _ResultadoCorrecaoScreenState extends State<ResultadoCorrecaoScreen> {
             aSalvar = [...novos, ...conflitos];
           } else {
             mantidas = conflitos.length;
+            _idsMantidos.addAll(conflitos.map((r) => r.id));
           }
         }
       }
@@ -341,6 +348,8 @@ class _ResultadoCorrecaoScreenState extends State<ResultadoCorrecaoScreen> {
                         return _ResultadoAlunoCard(
                           resultado: item,
                           posicao: index + 1,
+                          notaAnteriorMantida:
+                              _idsMantidos.contains(_recordIds[index]),
                           onTap: () {
                             Navigator.of(context).push(
                               MaterialPageRoute<void>(
@@ -512,11 +521,15 @@ class _ResultadoAlunoCard extends StatelessWidget {
     required this.resultado,
     required this.posicao,
     this.onTap,
+    this.notaAnteriorMantida = false,
   });
 
   final ResultadoAluno resultado;
   final int posicao;
   final VoidCallback? onTap;
+
+  /// O professor manteve a nota já salva: esta leitura não foi gravada.
+  final bool notaAnteriorMantida;
 
   @override
   Widget build(BuildContext context) {
@@ -549,11 +562,24 @@ class _ResultadoAlunoCard extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: Text(
-                  resultado.nomeAluno,
-                  style: theme.textTheme.bodyMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      resultado.nomeAluno,
+                      style: theme.textTheme.bodyMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (notaAnteriorMantida)
+                      Text(
+                        'Nota anterior mantida — esta leitura não foi salva',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),

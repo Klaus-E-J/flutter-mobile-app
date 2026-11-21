@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/navigation/app_tabs.dart';
@@ -32,6 +34,12 @@ class _SelecaoProvaScreenState extends State<SelecaoProvaScreen> {
   List<ProvaCorrecao> _provas = [];
   ProvaCorrecao? _provaSelecionada;
   bool _isLoading = true;
+
+  /// Preparando o gabarito para iniciar a leitura (bloqueia toque duplo).
+  bool _iniciando = false;
+
+  /// Tempo máximo esperando o servidor antes de usar o que está no aparelho.
+  static const Duration _tempoLimite = Duration(seconds: 15);
   String? _errorMessage;
 
   @override
@@ -141,31 +149,48 @@ class _SelecaoProvaScreenState extends State<SelecaoProvaScreen> {
       return;
     }
 
+    if (_iniciando) return; // evita abrir a leitura duas vezes
+    setState(() => _iniciando = true);
+
     List<Questao> questions = [];
     List<StudentRecord> students = [];
     List<ExamVariant> variants = [];
+    var usandoDadosDoAparelho = false;
+
+    Future<List<StudentRecord>> carregarAlunos({bool cacheOnly = false}) async {
+      if (prova.classId == null || prova.classId!.isEmpty) return const [];
+      final lista = await _classRepository.getStudents(prova.classId!, cacheOnly: cacheOnly);
+      return lista
+          .map((s) => s.withClass(classId: prova.classId, className: prova.turma))
+          .toList();
+    }
 
     try {
-      questions = await _examRepository.getQuestions(prova.id);
-      if (prova.classId != null && prova.classId!.isNotEmpty) {
-        students = (await _classRepository.getStudents(prova.classId!))
-            .map((s) => s.withClass(classId: prova.classId, className: prova.turma))
+      try {
+        questions = await _examRepository.getQuestions(prova.id).timeout(_tempoLimite);
+        students = await carregarAlunos().timeout(_tempoLimite);
+        // Sincroniza considerando TODAS as turmas da prova: nunca apaga nem
+        // altera as variantes de outras turmas ou de folhas já impressas.
+        variants = await _examRepository
+            .syncVariants(examId: prova.id, questions: questions)
+            .timeout(_tempoLimite);
+      } on TimeoutException {
+        // Sem resposta do servidor (ex.: sem internet): usa o gabarito que já
+        // está salvo no aparelho. Nunca gera um gabarito novo nesse caso.
+        usandoDadosDoAparelho = true;
+        questions = await _examRepository.getQuestions(prova.id, cacheOnly: true);
+        students = await carregarAlunos(cacheOnly: true);
+        variants = await _examRepository.getVariants(prova.id, cacheOnly: true);
+      }
+      if (prova.provaIndividual && students.isNotEmpty) {
+        variants = variants
+            .where((v) => students.any((s) => s.id == v.studentId))
             .toList();
       }
-      // Sincroniza considerando TODAS as turmas da prova: nunca apaga nem
-      // altera as variantes de outras turmas ou de folhas já impressas.
-      final allVariants = await _examRepository.syncVariants(
-        examId: prova.id,
-        questions: questions,
-      );
-      variants = prova.provaIndividual && students.isNotEmpty
-          ? allVariants
-              .where((v) => students.any((s) => s.id == v.studentId))
-              .toList()
-          : allVariants;
     } catch (e) {
       debugPrint('Falha ao preparar a correção: $e');
       if (!mounted) return;
+      setState(() => _iniciando = false);
       AppSnackBar.error(
         context,
         'Não foi possível carregar o gabarito desta prova. Verifique a conexão e tente novamente.',
@@ -174,12 +199,22 @@ class _SelecaoProvaScreenState extends State<SelecaoProvaScreen> {
     }
 
     if (!mounted) return;
+    setState(() => _iniciando = false);
     if (questions.isEmpty || variants.isEmpty) {
       AppSnackBar.error(
         context,
-        'Não há gabarito gerado para esta prova/turma. Confira as questões e os alunos da turma.',
+        usandoDadosDoAparelho
+            ? 'Sem conexão e sem gabarito salvo no aparelho para esta prova. '
+                'Conecte-se à internet e tente novamente.'
+            : 'Não há gabarito gerado para esta prova/turma. Confira as questões e os alunos da turma.',
       );
       return;
+    }
+    if (usandoDadosDoAparelho) {
+      AppSnackBar.show(
+        context,
+        'Sem conexão: usando o gabarito salvo no aparelho. As notas serão enviadas quando a internet voltar.',
+      );
     }
 
     Navigator.push(
@@ -308,10 +343,11 @@ class _SelecaoProvaScreenState extends State<SelecaoProvaScreen> {
                                 ),
                               const SizedBox(height: 24),
                               AppButton(
-                                label: 'Iniciar leitura',
+                                label: _iniciando ? 'Preparando gabarito...' : 'Iniciar leitura',
                                 icon: AppIcons.correction,
                                 expanded: true,
-                                onPressed: _podeIniciar ? _iniciarLeitura : null,
+                                isLoading: _iniciando,
+                                onPressed: _podeIniciar && !_iniciando ? _iniciarLeitura : null,
                               ),
                               const SizedBox(height: 4),
                               Center(

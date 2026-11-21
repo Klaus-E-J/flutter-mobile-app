@@ -212,6 +212,7 @@ class ExamRandomizerService {
     required List<ExamVariant> existing,
     required String fingerprint,
     List<Questao>? legacyQuestions,
+    ExamApplicationMode? mode,
   }) {
     final perStudent =
         generated.isNotEmpty && (generated.first.studentId ?? '').isNotEmpty;
@@ -221,7 +222,8 @@ class ExamRandomizerService {
       if (e.configFingerprint == null && legacyQuestions != null) {
         final isPerStudent = (e.studentId ?? '').isNotEmpty;
         return isPerStudent == perStudent &&
-            _matchesQuestions(e, legacyQuestions);
+            _matchesQuestions(e, legacyQuestions) &&
+            (mode == null || _respectsMode(e, legacyQuestions, mode));
       }
       return false;
     }
@@ -231,13 +233,15 @@ class ExamRandomizerService {
         if (reusable(e)) e.id: e,
     };
     final generatedIds = generated.map((g) => g.id).toSet();
-    // Variantes por aluno salvas cujo aluno não está mais na lista: são
-    // preservadas (folha já impressa continua reconhecível).
-    final preserved = perStudent
-        ? reusableById.values
-            .where((e) => !generatedIds.contains(e.id) && (e.studentId ?? '').isNotEmpty)
-            .toList()
-        : const <ExamVariant>[];
+    // Variantes salvas que não foram geradas de novo, mas continuam valendo,
+    // são preservadas para que folhas já impressas sejam reconhecidas:
+    // - por aluno: aluno removido da turma;
+    // - prova única: cadernos B–D de versões anteriores do app.
+    final preserved = reusableById.values
+        .where((e) =>
+            !generatedIds.contains(e.id) &&
+            (e.studentId ?? '').isNotEmpty == perStudent)
+        .toList();
     final usedCodes = <String>{
       for (final g in generated)
         if (reusableById.containsKey(g.id)) reusableById[g.id]!.code,
@@ -290,6 +294,34 @@ class ExamRandomizerService {
   /// atual)? Os textos são comparados sem espaços nas pontas, pois versões
   /// anteriores salvavam o texto digitado no editor e o Firestore guarda o
   /// texto aparado.
+  /// Uma variante antiga só vale para o modo atual se respeita o que o modo
+  /// manda manter na ordem original (questões e/ou alternativas).
+  bool _respectsMode(
+    ExamVariant variant,
+    List<Questao> questions,
+    ExamApplicationMode mode,
+  ) {
+    if (!mode.shuffleQuestions) {
+      for (var i = 0; i < variant.questions.length; i++) {
+        if (variant.questions[i].originalQuestionId != questions[i].id) {
+          return false;
+        }
+      }
+    }
+    if (!mode.shuffleAlternatives) {
+      final byId = {for (final q in questions) q.id: q};
+      for (final vq in variant.questions) {
+        final master = byId[vq.originalQuestionId]!;
+        for (var a = 0; a < vq.alternatives.length; a++) {
+          if (vq.alternatives[a].originalAlternativeId != master.alternativas[a].id) {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+
   bool _matchesQuestions(ExamVariant variant, List<Questao> questions) {
     if (variant.questions.length != questions.length) return false;
     if (variant.answerKey.length != questions.length) return false;

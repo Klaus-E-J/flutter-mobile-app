@@ -48,6 +48,9 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
   late final TextEditingController _nameController;
   final Set<String> _selectedClassIds = <String>{};
   late ExamApplicationMode _applicationMode;
+
+  /// Modo de aplicação gravado no Firestore (para detectar mudanças).
+  late ExamApplicationMode _modoSalvo;
   List<ClassRecord> _availableClasses = <ClassRecord>[];
   String? _examId;
   bool _loadingClasses = true;
@@ -65,6 +68,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     _nameController = TextEditingController(text: widget.initialName ?? '');
     _selectedClassIds.addAll(widget.initialClassIds);
     _applicationMode = widget.initialApplicationMode;
+    _modoSalvo = widget.initialApplicationMode;
     _loadClasses();
   }
 
@@ -190,6 +194,33 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
 
     FocusScope.of(context).unfocus();
     final wasEditing = _examId != null;
+
+    // Trocar a forma de aplicação gera provas novas: avisa antes, se a
+    // prova já tem folhas geradas (que podem ter sido impressas).
+    if (wasEditing && _applicationMode != _modoSalvo) {
+      var temFolhas = false;
+      try {
+        temFolhas = (await _examRepository.getVariants(_examId!)).isNotEmpty;
+      } catch (_) {}
+      if (!mounted) return false;
+      if (temFolhas) {
+        final confirmar = await AppDialog.confirm(
+          context: context,
+          title: 'Mudar a aplicação da prova?',
+          message:
+              'Ao trocar para "${_applicationMode.label}", as provas serão geradas de novo. '
+              'Folhas e cadernos já impressos deixarão de valer e precisarão ser impressos novamente.',
+          confirmLabel: 'Mudar e gerar de novo',
+          destructive: true,
+        );
+        if (!mounted) return false;
+        if (confirmar != true) {
+          setState(() => _applicationMode = _modoSalvo);
+          return false;
+        }
+      }
+    }
+
     setState(() => _saving = true);
     try {
       final selectedClasses = _availableClasses
@@ -202,6 +233,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
         classNames: selectedClasses.map((item) => item.name).toList(),
         applicationMode: _applicationMode,
       );
+      _modoSalvo = _applicationMode;
       if (wasEditing && _examId != null) {
         try {
           await _examRepository.regenerateVariantsForExam(examId: _examId!);

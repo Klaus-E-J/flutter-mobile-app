@@ -189,12 +189,15 @@ class _ProvaQuestoesScreenState extends State<ProvaQuestoesScreen> {
     try {
       // saveQuestions já sincroniza as variantes: se o conteúdo das questões
       // mudou, as provas são geradas de novo (folhas antigas deixam de valer).
-      await _repository.saveQuestions(widget.examId, _questoes);
+      final precisaReimprimir =
+          await _repository.saveQuestions(widget.examId, _questoes);
       if (!mounted) return;
       AppSnackBar.success(
         context,
-        '${_questoes.length} questão(ões) salva(s). Se você já tinha impresso '
-        'esta prova, imprima as folhas novamente.',
+        precisaReimprimir
+            ? '${_questoes.length} questão(ões) salva(s). As provas foram atualizadas: '
+                'imprima as folhas e cadernos novamente.'
+            : '${_questoes.length} questão(ões) salva(s).',
       );
       setState(() {
         _temAlteracoes = false;

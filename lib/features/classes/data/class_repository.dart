@@ -209,12 +209,13 @@ class ClassRepository {
       .snapshots()
       .map((snapshot) => snapshot.docs.map(StudentRecord.fromDocument).toList());
 
-  Future<List<StudentRecord>> getStudents(String classId) async {
+  /// [cacheOnly] lê apenas o que está salvo no aparelho (uso offline).
+  Future<List<StudentRecord>> getStudents(String classId, {bool cacheOnly = false}) async {
     final snapshot = await _classes
         .doc(classId)
         .collection('students')
         .orderBy('name')
-        .get();
+        .get(cacheOnly ? const GetOptions(source: Source.cache) : null);
     return snapshot.docs.map(StudentRecord.fromDocument).toList();
   }
 

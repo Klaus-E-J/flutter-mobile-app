@@ -456,6 +456,24 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
     );
   }
 
+  /// Prova individual: cada folha começa pelo QR Code (passo 1).
+  void _voltarParaLeituraQr() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LeituraQrScreen(
+          prova: widget.prova,
+          questions: widget.questions,
+          students: widget.students,
+          variants: _availableVariants,
+          provasLidas: _provasLidas,
+          errosLeitura: _errosLeitura,
+          resultadosAcumulados: _resultadosCapturados,
+        ),
+      ),
+    );
+  }
+
   Future<void> _registrarCorrecaoConfirmada({
     required StudentRecord student,
     required Map<int, List<String>> markedLettersByQuestion,
@@ -495,6 +513,12 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
       );
       if (!mounted) return;
       if (substituir != true) {
+        if (widget.prova.provaIndividual) {
+          // Volta ao passo 1: a próxima folha é identificada pelo próprio QR,
+          // e não pela prova do aluno anterior.
+          _voltarParaLeituraQr();
+          return;
+        }
         setState(() {
           _status = LeituraStatus.aguardando;
           _feedbackText =
@@ -535,20 +559,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
     if (concluiuTodasAsFolhas) return;
 
     if (widget.prova.provaIndividual) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => LeituraQrScreen(
-            prova: widget.prova,
-            questions: widget.questions,
-            students: widget.students,
-            variants: _availableVariants,
-            provasLidas: _provasLidas,
-            errosLeitura: _errosLeitura,
-            resultadosAcumulados: _resultadosCapturados,
-          ),
-        ),
-      );
+      _voltarParaLeituraQr();
       return;
     }
 

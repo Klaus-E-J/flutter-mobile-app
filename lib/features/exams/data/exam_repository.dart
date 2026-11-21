@@ -158,12 +158,13 @@ class ExamRepository {
       .snapshots()
       .map((snapshot) => snapshot.docs.map(_questionFromDocument).toList());
 
-  Future<List<Questao>> getQuestions(String examId) async {
+  /// [cacheOnly] lê apenas o que está salvo no aparelho (uso offline).
+  Future<List<Questao>> getQuestions(String examId, {bool cacheOnly = false}) async {
     final snapshot = await _exams
         .doc(examId)
         .collection('questions')
         .orderBy('order')
-        .get();
+        .get(cacheOnly ? const GetOptions(source: Source.cache) : null);
     return snapshot.docs.map(_questionFromDocument).toList();
   }
 
@@ -183,7 +184,9 @@ class ExamRepository {
     );
   }
 
-  Future<void> saveQuestions(String examId, List<Questao> questions) async {
+  /// Salva as questões. Retorna `true` quando provas que já existiam (e
+  /// podem ter sido impressas) mudaram e precisam ser impressas de novo.
+  Future<bool> saveQuestions(String examId, List<Questao> questions) async {
     final examReference = _exams.doc(examId);
     final questionsReference = examReference.collection('questions');
     final existing = await questionsReference.get();
@@ -231,13 +234,14 @@ class ExamRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    // Sempre que as questões mudam, regenera as variantes e gabaritos da prova (N3-02).
-    if (questions.isNotEmpty) {
-      try {
-        await regenerateVariantsForExam(examId: examId, questions: questions);
-      } catch (_) {
-        // Fallback silencioso se offline/sem turmas
-      }
+    // Sincroniza as variantes: só mudam se o conteúdo das questões mudou.
+    // Se falhar (ex.: offline), a tela de impressão/correção sincroniza depois.
+    if (questions.isEmpty) return false;
+    try {
+      final result = await syncVariantsDetailed(examId: examId, questions: questions);
+      return result.printedChanged;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -272,8 +276,12 @@ class ExamRepository {
   }
 
   /// Recupera todas as variantes salvas para uma prova.
-  Future<List<ExamVariant>> getVariants(String examId) async {
-    final snapshot = await _exams.doc(examId).collection('variants').get();
+  /// [cacheOnly] lê apenas o que está salvo no aparelho (uso offline).
+  Future<List<ExamVariant>> getVariants(String examId, {bool cacheOnly = false}) async {
+    final snapshot = await _exams
+        .doc(examId)
+        .collection('variants')
+        .get(cacheOnly ? const GetOptions(source: Source.cache) : null);
     final list = snapshot.docs
         .map((doc) => ExamVariant.fromMap(doc.id, doc.data()))
         .toList();
@@ -315,12 +323,28 @@ class ExamRepository {
     List<Questao>? questions,
     bool reshuffle = false,
   }) async {
+    final result = await syncVariantsDetailed(
+      examId: examId,
+      questions: questions,
+      reshuffle: reshuffle,
+    );
+    return result.variants;
+  }
+
+  /// Igual a [syncVariants], informando também se alguma prova que já
+  /// existia (e pode ter sido impressa) mudou ou deixou de existir.
+  Future<({List<ExamVariant> variants, bool printedChanged})> syncVariantsDetailed({
+    required String examId,
+    List<Questao>? questions,
+    bool reshuffle = false,
+  }) async {
+    const none = (variants: <ExamVariant>[], printedChanged: false);
     final examRef = _exams.doc(examId);
     final examDoc = await examRef.get();
-    if (!examDoc.exists) return const [];
+    if (!examDoc.exists) return none;
     final exam = ExamRecord.fromDocument(examDoc);
     final examQuestions = questions ?? await getQuestions(examId);
-    if (examQuestions.isEmpty) return const [];
+    if (examQuestions.isEmpty) return none;
 
     final mode = exam.applicationMode;
     var seed = (examDoc.data()?['variantSeed'] as num?)?.toInt() ??
@@ -364,13 +388,29 @@ class ExamRepository {
       // Variantes de versões anteriores só são reaproveitadas enquanto o
       // professor não pedir um novo embaralhamento.
       legacyQuestions: reshuffle ? null : examQuestions,
+      // Provas muito antigas (sem `applicationMode` salvo) tinham cadernos
+      // embaralhados mesmo em "mesma prova": mantém o que foi impresso. Com o
+      // modo salvo explicitamente, a variante antiga precisa respeitá-lo.
+      mode: examDoc.data()?['applicationMode'] != null ? mode : null,
     );
 
     if (!_sameVariants(existing, merged)) {
       await saveVariants(examId, merged);
     }
-    return merged;
+
+    final mergedById = {for (final v in merged) v.id: v};
+    final printedChanged = existing.any((e) {
+      final m = mergedById[e.id];
+      return m == null || _contentKey(m) != _contentKey(e);
+    });
+    return (variants: merged, printedChanged: printedChanged);
   }
+
+  /// O que vai impresso na folha/caderno: ordem, textos e gabarito.
+  static String _contentKey(ExamVariant v) => jsonEncode({
+        'q': v.questions.map((q) => q.toMap()).toList(),
+        'k': v.answerKey.map((k, val) => MapEntry('$k', val)),
+      });
 
   static bool _sameVariants(List<ExamVariant> a, List<ExamVariant> b) {
     if (a.length != b.length) return false;

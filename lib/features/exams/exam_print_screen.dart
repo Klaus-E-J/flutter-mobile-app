@@ -171,7 +171,14 @@ class _ExamPrintScreenState extends State<ExamPrintScreen> {
     List<ExamVariant> variants,
     List<StudentRecord> students,
   ) {
-    if (!widget.applicationMode.perStudent || students.isEmpty) return variants;
+    if (!widget.applicationMode.perStudent) {
+      // Prova única: imprime só o caderno atual. Cadernos B–D de versões
+      // antigas ficam salvos apenas para reconhecer folhas já impressas.
+      final count = widget.applicationMode.fallbackVariantCount;
+      final sorted = [...variants]..sort((a, b) => a.code.compareTo(b.code));
+      return sorted.take(count).toList();
+    }
+    if (students.isEmpty) return variants;
     final ids = students.map((s) => s.id).toSet();
     final filtered =
         variants.where((v) => v.studentId == null || ids.contains(v.studentId)).toList();
