@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
@@ -833,6 +834,78 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
     }
   }
 
+  /// Prévia da câmera sem distorção: mantém a proporção real do sensor e
+  /// recorta as sobras (BoxFit.cover) num quadro com formato de folha (3:4).
+  /// A foto capturada contém tudo o que aparece no quadro, e um pouco mais.
+  Widget _buildCameraPreview(CameraController controller) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final maxHeight = MediaQuery.sizeOf(context).height * 0.55;
+        final height = math.min(width * 4 / 3, maxHeight);
+        // O plugin informa a proporção em paisagem (largura/altura do sensor).
+        final sensorRatio = controller.value.aspectRatio;
+        final isPortrait =
+            MediaQuery.orientationOf(context) == Orientation.portrait;
+        final previewRatio = isPortrait ? 1 / sensorRatio : sensorRatio;
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                FittedBox(
+                  fit: BoxFit.cover,
+                  clipBehavior: Clip.hardEdge,
+                  child: SizedBox(
+                    width: width,
+                    height: width / previewRatio,
+                    child: CameraPreview(controller),
+                  ),
+                ),
+                // Guia de enquadramento da folha.
+                IgnorePointer(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 40),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 10,
+                  child: IgnorePointer(
+                    child: Text(
+                      'Enquadre a folha inteira, com os 4 quadrados visíveis',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -905,14 +978,7 @@ class _LeituraGabaritoScreenState extends State<LeituraGabaritoScreen> {
               if (_useLiveCamera &&
                   _cameraController != null &&
                   _cameraController!.value.isInitialized)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(
-                    height: 220,
-                    width: double.infinity,
-                    child: CameraPreview(_cameraController!),
-                  ),
-                )
+                _buildCameraPreview(_cameraController!)
               else
                 CameraPlaceholder(
                   label: 'OMR • ${_currentVariant.code}',
