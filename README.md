@@ -10,13 +10,13 @@ O **Avalia Pro** é uma aplicação mobile desenvolvida em Flutter e integrada a
 
 ## 2. Evolução das Entregas (N1 → N2 → N3)
 
-- **Entrega N1:** Estrutura de navegação, prototipação de alta fidelidade e fluxos principais do aplicativo.
+- **Entrega N1:** Estrutura de navegação, prototipação inicial e fluxos principais do aplicativo.
 - **Entrega N2:** Integração com **Firebase Authentication** (E-mail/Senha e Convidado Anônimo) e **Cloud Firestore** para persistência isolada por professor (`users/{uid}/...`).
 - **Entrega N3:**
   - **CRUD Completo no Firestore:** criação, leitura, edição e exclusão de Turmas, Alunos (individual e importação em lote `.csv`/`.xlsx`/`.xls`), Provas, Questões (até 30 questões com 5 alternativas `A–E`), Variantes, Submissões/Resultados e Perfil do Professor;
   - **Gabarito Rápido (Prova Externa):** modo expresso para professores que já possuem a prova diagramada fora do sistema e desejam gerar apenas as folhas de resposta com QR Code e gabarito;
   - **Motor de Randomização e Mapeamento:** embaralhamento configurável de questões e alternativas (`A–E`), mantendo o rastreamento para consolidar estatísticas e planilhas mesmo quando cada aluno responde uma variante diferente;
-  - **Folhas OMR Nominais e Exportação PDF + `.doc` (`ExamPdfService`):** geração de folhas de resposta identificadas por aluno (mesmo em provas únicas), cadernos de prova em PDF com blocos indivisíveis (sem cortar questões entre páginas) e exportação editável para Microsoft Word (`.doc`);
+  - **Folhas OMR Nominais e Exportação PDF + `.doc`:** geração de folhas de resposta identificadas por aluno (mesmo em provas únicas), cadernos de prova em PDF com blocos indivisíveis (sem cortar questões entre páginas) e exportação editável para Microsoft Word (`.doc`);
   - **Visão Computacional:** decodificação de QR Code, detecção de marcadores fiduciais nos 4 cantos, correção de perspectiva por transformação homográfica, detecção adaptativa de bolhas preenchidas, em branco e rasuras (múltiplas marcações), além de suporte a anulação de questões;
   - **Estatísticas Pedagógicas e Exportação Excel/CSV:** distribuição percentual e contagem por alternativa (`A` a `E` e `Branco`), destaque da **alternativa mais assinalada** em cada questão e exportação de planilhas `.xlsx` multi-abas (`Resultados`, `Estatisticas`, `Gabarito_Respostas`) e `.csv`.
 
