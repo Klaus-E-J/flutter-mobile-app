@@ -2,9 +2,17 @@ import 'package:flutter/material.dart';
 import '../../screens/provas/prova_questoes_screen.dart';
 import '../classes/data/class_repository.dart';
 import 'data/exam_repository.dart';
+import 'exam_print_screen.dart';
+import 'models/exam_application_mode.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_section_header.dart';
 import '../../core/widgets/app_text_field.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_delete_button.dart';
+import '../../core/widgets/app_snack_bar.dart';
+import '../../core/widgets/app_dialog.dart';
 
 /// Cadastro e edição de provas com persistência no Cloud Firestore.
 class ExamFormScreen extends StatefulWidget {
@@ -14,7 +22,7 @@ class ExamFormScreen extends StatefulWidget {
     this.initialName,
     this.initialClassIds = const <String>[],
     this.initialClasses = const <String>[],
-    this.initialSameExamForEveryone = true,
+    this.initialApplicationMode = ExamApplicationMode.sameForEveryone,
   });
 
   /// ID do documento quando a tela está editando uma prova existente.
@@ -26,9 +34,8 @@ class ExamFormScreen extends StatefulWidget {
   /// Turmas previamente vinculadas no modo de edição.
   final List<String> initialClasses;
 
-  /// true  = mesma prova para todos, com ordem embaralhada.
-  /// false = provas diferentes por aluno.
-  final bool initialSameExamForEveryone;
+  /// Como a prova é aplicada (o que muda de um aluno para outro).
+  final ExamApplicationMode initialApplicationMode;
 
   @override
   State<ExamFormScreen> createState() => _ExamFormScreenState();
@@ -40,7 +47,10 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
 
   late final TextEditingController _nameController;
   final Set<String> _selectedClassIds = <String>{};
-  late bool _sameExamForEveryone;
+  late ExamApplicationMode _applicationMode;
+
+  /// Modo de aplicação gravado no Firestore (para detectar mudanças).
+  late ExamApplicationMode _modoSalvo;
   List<ClassRecord> _availableClasses = <ClassRecord>[];
   String? _examId;
   bool _loadingClasses = true;
@@ -57,8 +67,16 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     _examId = widget.initialExamId;
     _nameController = TextEditingController(text: widget.initialName ?? '');
     _selectedClassIds.addAll(widget.initialClassIds);
-    _sameExamForEveryone = widget.initialSameExamForEveryone;
+    _applicationMode = widget.initialApplicationMode;
+    _modoSalvo = widget.initialApplicationMode;
     _loadClasses();
+  }
+
+  /// Avisa quando um modo "por aluno" foi escolhido, mas as turmas estão vazias.
+  bool get _showNoStudentsHint {
+    if (!_applicationMode.perStudent || _loadingClasses) return false;
+    final selected = _availableClasses.where((c) => _selectedClassIds.contains(c.id));
+    return selected.isNotEmpty && selected.every((c) => c.studentCount == 0);
   }
 
   Future<void> _loadClasses() async {
@@ -79,9 +97,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _loadingClasses = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível carregar as turmas: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível carregar as turmas: $error');
     }
   }
 
@@ -105,7 +121,7 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     });
   }
 
-  Future<void> _openQuestions() async {
+  Future<void> _openQuestions({bool openQuickAnswerKey = false}) async {
     if (!await _saveExam(showFeedback: false)) return;
     final examId = _examId;
     if (examId == null || !mounted) return;
@@ -114,9 +130,56 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
         builder: (_) => ProvaQuestoesScreen(
           examId: examId,
           provaTitulo: _nameController.text.trim(),
+          openQuickAnswerKeyOnStart: openQuickAnswerKey,
         ),
       ),
     );
+  }
+
+  Future<void> _openPrintAndVariants() async {
+    if (!await _saveExam(showFeedback: false)) return;
+    final examId = _examId;
+    if (examId == null || !mounted) return;
+    final selectedClasses = _availableClasses
+        .where((item) => _selectedClassIds.contains(item.id))
+        .toList();
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ExamPrintScreen(
+          examId: examId,
+          examTitle: _nameController.text.trim(),
+          classIds: selectedClasses.map((item) => item.id).toList(),
+          classNames: selectedClasses.map((item) => item.name).toList(),
+          applicationMode: _applicationMode,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteExam() async {
+    final examId = _examId;
+    if (examId == null) return;
+    final confirmed = await AppDialog.confirm(
+      context: context,
+      title: 'Excluir prova?',
+      message: 'Tem certeza que deseja excluir a prova "${_nameController.text.trim()}", suas questões e variantes?',
+      confirmLabel: 'Excluir',
+      destructive: true,
+    );
+    if (!mounted || confirmed != true) return;
+
+    setState(() => _saving = true);
+    try {
+      await _examRepository.deleteExam(examId);
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (error) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'Não foi possível excluir a prova: $error');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<bool> _saveExam({bool showFeedback = true}) async {
@@ -125,37 +188,66 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     final hasClass = _selectedClassIds.isNotEmpty;
     setState(() {
       _nameError = hasName ? null : 'Informe o nome da prova.';
-    _classesError = hasClass ? null : 'Selecione pelo menos uma turma.';
+      _classesError = hasClass ? null : 'Selecione pelo menos uma turma.';
     });
     if (!hasName || !hasClass) return false;
 
     FocusScope.of(context).unfocus();
     final wasEditing = _examId != null;
+
+    // Trocar a forma de aplicação gera provas novas: avisa antes, se a
+    // prova já tem folhas geradas (que podem ter sido impressas).
+    if (wasEditing && _applicationMode != _modoSalvo) {
+      var temFolhas = false;
+      try {
+        temFolhas = (await _examRepository.getVariants(_examId!)).isNotEmpty;
+      } catch (_) {}
+      if (!mounted) return false;
+      if (temFolhas) {
+        final confirmar = await AppDialog.confirm(
+          context: context,
+          title: 'Mudar a aplicação da prova?',
+          message:
+              'Ao trocar para "${_applicationMode.label}", as provas serão geradas de novo. '
+              'Folhas e cadernos já impressos deixarão de valer e precisarão ser impressos novamente.',
+          confirmLabel: 'Mudar e gerar de novo',
+          destructive: true,
+        );
+        if (!mounted) return false;
+        if (confirmar != true) {
+          setState(() => _applicationMode = _modoSalvo);
+          return false;
+        }
+      }
+    }
+
     setState(() => _saving = true);
     try {
       final selectedClasses = _availableClasses
-      .where((item) => _selectedClassIds.contains(item.id))
-      .toList();
+          .where((item) => _selectedClassIds.contains(item.id))
+          .toList();
       _examId = await _examRepository.saveExam(
         id: _examId,
         title: title,
         classIds: selectedClasses.map((item) => item.id).toList(),
         classNames: selectedClasses.map((item) => item.name).toList(),
-        sameExamForEveryone: _sameExamForEveryone,
+        applicationMode: _applicationMode,
       );
+      _modoSalvo = _applicationMode;
+      if (wasEditing && _examId != null) {
+        try {
+          await _examRepository.regenerateVariantsForExam(examId: _examId!);
+        } catch (_) {}
+      }
       if (!mounted) return true;
       if (showFeedback) {
-        ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(wasEditing ? 'Prova salva no Firestore.' : 'Prova criada no Firestore.')));
+        AppSnackBar.success(context, wasEditing ? 'Prova salva no Firestore.' : 'Prova criada no Firestore.');
       }
       setState(() {});
       return true;
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Não foi possível salvar a prova: $error')),
-        );
+        AppSnackBar.error(context, 'Não foi possível salvar a prova: $error');
       }
       return false;
     } finally {
@@ -171,35 +263,38 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Editar prova' : 'Criar prova'),
+        actions: [
+          if (_isEditing)
+            AppDeleteButton(tooltip: 'Excluir prova', onPressed: _saving ? null : _confirmDeleteExam),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          child: AppButton(
+            label: _saving
+                ? 'Salvando...'
+                : (_isEditing ? 'Salvar alterações' : 'Salvar prova'),
+            icon: AppIcons.confirm,
+            expanded: true,
+            isLoading: _saving,
+            onPressed: _loadingClasses ? null : () => _saveExam(),
+          ),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Prova / questões',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _isEditing ? 'Editar prova' : 'Nova prova',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Defina os dados principais da avaliação. As questões serão gerenciadas em uma etapa separada.',
+                'Defina os dados principais. Questões e impressão ficam nas próximas etapas.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               AppTextField(
                 label: 'Nome da prova',
@@ -214,13 +309,13 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
               ),
               const SizedBox(height: 28),
 
-              _SectionTitle(
+              AppSectionHeader(
                 title: 'Turmas',
                 subtitle: 'Vincule a prova a uma ou mais turmas.',
               ),
               const SizedBox(height: 12),
               if (_loadingClasses)
-                const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
+                const Padding(padding: EdgeInsets.all(16), child: AppLoading())
                 else if (_availableClasses.isEmpty)
                   const Text('Cadastre uma turma antes de criar uma prova.')
                   else
@@ -254,60 +349,74 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
                     ],
                     const SizedBox(height: 28),
 
-                    _SectionTitle(
-                      title: 'Modo da prova',
-                      subtitle: 'Escolha como a avaliação será aplicada aos alunos.',
+                    AppSectionHeader(
+                      title: 'Aplicação da prova',
+                      subtitle: 'As questões e alternativas são as mesmas; escolha o que será embaralhado.',
                     ),
                     const SizedBox(height: 12),
-                    AppCard(
-                      padding: EdgeInsets.zero,
-                      child: SwitchListTile.adaptive(
-                        value: _sameExamForEveryone,
-                        onChanged: (value) {
-                          setState(() => _sameExamForEveryone = value);
-                        },
-                        title: Text(
-                          _sameExamForEveryone
-                          ? 'Mesma prova para todos'
-                        : 'Provas diferentes por aluno',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            _sameExamForEveryone
-                            ? 'As questões e alternativas poderão ser apresentadas em ordem embaralhada.'
-                          : 'Cada aluno receberá uma prova diferente.',
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
+                    RadioGroup<ExamApplicationMode>(
+                      groupValue: _applicationMode,
+                      onChanged: (mode) {
+                        if (mode != null) setState(() => _applicationMode = mode);
+                      },
+                      child: Column(
+                        children: [
+                          for (final mode in ExamApplicationMode.values) ...[
+                            AppCard(
+                              padding: EdgeInsets.zero,
+                              child: RadioListTile<ExamApplicationMode>(
+                                value: mode,
+                                title: Text(mode.label),
+                                subtitle: Text(mode.description),
+                              ),
+                            ),
+                            if (mode != ExamApplicationMode.values.last)
+                              const SizedBox(height: 8),
+                          ],
+                        ],
                       ),
                     ),
+                    if (_showNoStudentsHint) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(AppIcons.info, size: 18, color: colorScheme.onSurfaceVariant),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'As turmas selecionadas ainda não têm alunos. Cadastre os alunos '
+                              'para gerar a prova embaralhada de cada um.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 28),
 
-                    _SectionTitle(
-                      title: 'Questões',
-                      subtitle:
-                      'Cadastre e edite as questões que fazem parte desta prova.',
+                    AppSectionHeader(
+                      title: 'Próximas etapas',
+                      subtitle: 'A prova é salva automaticamente ao abrir uma etapa.',
                     ),
                     const SizedBox(height: 12),
-                    AppButton(
-                      label: 'Gerenciar questões',
-                      icon: Icons.quiz_outlined,
-                      variant: AppButtonVariant.secondary,
-                      expanded: true,
-                      onPressed: _saving || _loadingClasses ? null : _openQuestions,
+                    _StepTile(
+                      step: 1,
+                      icon: AppIcons.questions,
+                      title: 'Questões e gabarito',
+                      subtitle:
+                          'Cadastre as questões ou use o Gabarito Rápido para uma prova externa.',
+                      onTap: _saving || _loadingClasses ? null : () => _openQuestions(),
                     ),
-                    const SizedBox(height: 24),
-
-                    AppButton(
-                      label: _saving ? 'Salvando...' : (_isEditing ? 'Salvar alterações' : 'Salvar prova'),
-                      icon: Icons.check,
-                      expanded: true,
-                      onPressed: _saving || _loadingClasses ? null : () => _saveExam(),
+                    const SizedBox(height: 10),
+                    _StepTile(
+                      step: 2,
+                      icon: AppIcons.print,
+                      title: 'Variantes e impressão',
+                      subtitle: 'Gere os cadernos e as folhas de resposta com QR Code.',
+                      onTap: _saving || _loadingClasses ? null : _openPrintAndVariants,
                     ),
             ],
           ),
@@ -317,38 +426,71 @@ class _ExamFormScreenState extends State<ExamFormScreen> {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({
+/// Etapa numerada do fluxo da prova (questões → impressão).
+class _StepTile extends StatelessWidget {
+  const _StepTile({
+    required this.step,
+    required this.icon,
     required this.title,
     required this.subtitle,
+    required this.onTap,
   });
 
+  final int step;
+  final IconData icon;
   final String title;
   final String subtitle;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final enabled = onTap != null;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+    return AppCard(
+      onTap: onTap,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.5,
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: colorScheme.primaryContainer,
+              foregroundColor: colorScheme.onPrimaryContainer,
+              child: Text(
+                '$step',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(icon, size: 18, color: colorScheme.primary),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(title, style: theme.textTheme.titleSmall),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(AppIcons.chevron, color: colorScheme.onSurfaceVariant),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
-
-

@@ -12,7 +12,16 @@ class AppLoading extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const CircularProgressIndicator(),
-          if (message != null) ...[const SizedBox(height: 16), Text(message!)],
+          if (message != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              message!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ],
       ),
     );

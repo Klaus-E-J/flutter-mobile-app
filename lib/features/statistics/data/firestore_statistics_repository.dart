@@ -54,6 +54,20 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
         .where((s) => s.className == className && s.examTitle == examName)
         .toList();
 
+    return buildClassStatsFromSubmissions(
+      className: className,
+      examName: examName,
+      matching: matching,
+    );
+  }
+
+  /// Calcula as estatísticas consolidadas da turma e por questão canônica
+  /// a partir de uma lista de submissões da avaliação.
+  static ClassStats buildClassStatsFromSubmissions({
+    required String className,
+    required String examName,
+    required List<SubmissionRecord> matching,
+  }) {
     if (matching.isEmpty) {
       return ClassStats(
         className: className,
@@ -83,9 +97,7 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
     int c8to10 = 0;
 
     for (final sub in matching) {
-      final grade = sub.totalQuestions > 0
-          ? (sub.score / sub.totalQuestions) * 10.0
-          : 0.0;
+      final grade = sub.notaFinal10;
 
       totalGrades += grade;
       if (grade >= 6.0) {
@@ -118,17 +130,33 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
       GradeDistribution(label: '8-10', count: c8to10),
     ];
 
-    // Estatísticas por questão
-    final totalQuestions = matching.first.totalQuestions;
+    // Estatísticas por questão agrupadas pelo número canônico original (1..N)
+    int totalQuestions = 0;
+    for (final sub in matching) {
+      if (sub.totalQuestions > totalQuestions) {
+        totalQuestions = sub.totalQuestions;
+      }
+      for (final a in sub.answers) {
+        if (a.canonicalQuestionNumber > totalQuestions) {
+          totalQuestions = a.canonicalQuestionNumber;
+        }
+      }
+    }
+
     final questionStats = <QuestionStats>[];
+    const standardAlternatives = ['A', 'B', 'C', 'D', 'E'];
 
     for (int qNum = 1; qNum <= totalQuestions; qNum++) {
       String correct = '';
-      final alternativeCounts = <String, int>{};
+      final optionCounts = <String, int>{
+        for (final alt in standardAlternatives) alt: 0,
+        'Branco': 0,
+      };
+      int hits = 0;
 
       for (final sub in matching) {
         final answer = sub.answers.firstWhere(
-          (a) => a.questionNumber == qNum,
+          (a) => a.canonicalQuestionNumber == qNum,
           orElse: () => const SubmissionQuestionAnswer(
             questionNumber: 0,
             marked: '',
@@ -137,32 +165,74 @@ class FirestoreStatisticsRepository implements StatisticsRepository {
           ),
         );
 
-        if (answer.questionNumber != 0) {
-          if (correct.isEmpty && answer.correct.isNotEmpty) {
-            correct = answer.correct;
+        if (answer.questionNumber != 0 ||
+            (answer.originalQuestionNumber != null &&
+                answer.originalQuestionNumber != 0)) {
+          final canonicalCorr =
+              answer.effectiveCanonicalCorrect.toUpperCase().trim();
+          if (correct.isEmpty && canonicalCorr.isNotEmpty) {
+            correct = canonicalCorr;
           }
-          final marked = answer.marked.toUpperCase().trim();
-          if (marked.isNotEmpty) {
-            alternativeCounts[marked] = (alternativeCounts[marked] ?? 0) + 1;
+          if (answer.isCorrect) {
+            hits++;
+          }
+
+          final rawMarked =
+              answer.effectiveCanonicalSelected.toUpperCase().trim();
+          if (rawMarked.isEmpty ||
+              rawMarked == 'EM BRANCO' ||
+              rawMarked == 'BRANCO') {
+            optionCounts['Branco'] = (optionCounts['Branco'] ?? 0) + 1;
+          } else if (standardAlternatives.contains(rawMarked)) {
+            optionCounts[rawMarked] = (optionCounts[rawMarked] ?? 0) + 1;
+          } else {
+            optionCounts[rawMarked] = (optionCounts[rawMarked] ?? 0) + 1;
           }
         }
       }
 
       final alternativePercentages = <String, int>{};
-      const standardAlternatives = ['A', 'B', 'C', 'D', 'E'];
       for (final alt in standardAlternatives) {
-        final count = alternativeCounts[alt] ?? 0;
-        final pct = totalStudents > 0 ? ((count / totalStudents) * 100).round() : 0;
-        if (count > 0 || alt == correct || alt == 'A' || alt == 'B' || alt == 'C' || alt == 'D') {
-          alternativePercentages[alt] = pct;
+        final count = optionCounts[alt] ?? 0;
+        final pct =
+            totalStudents > 0 ? ((count / totalStudents) * 100).round() : 0;
+        alternativePercentages[alt] = pct;
+      }
+      final blankCount = optionCounts['Branco'] ?? 0;
+      if (blankCount > 0) {
+        alternativePercentages['Branco'] =
+            totalStudents > 0 ? ((blankCount / totalStudents) * 100).round() : 0;
+      }
+
+      String mostMarkedOption = 'A';
+      int maxCount = -1;
+      for (final alt in standardAlternatives) {
+        final c = optionCounts[alt] ?? 0;
+        if (c > maxCount) {
+          maxCount = c;
+          mostMarkedOption = alt;
         }
       }
+      if (maxCount <= 0 && blankCount > 0) {
+        mostMarkedOption = 'Branco';
+        maxCount = blankCount;
+      }
+      final mostMarkedPercentage =
+          totalStudents > 0 && maxCount > 0
+              ? ((maxCount / totalStudents) * 100).round()
+              : 0;
+      final hitRate =
+          totalStudents > 0 ? ((hits / totalStudents) * 100).round() : 0;
 
       questionStats.add(
         QuestionStats(
           questionNumber: qNum,
           correctAlternative: correct.isNotEmpty ? correct : 'A',
           alternativePercentages: alternativePercentages,
+          optionCounts: optionCounts,
+          mostMarkedOption: mostMarkedOption,
+          mostMarkedPercentage: mostMarkedPercentage,
+          hitRate: hitRate,
         ),
       );
     }

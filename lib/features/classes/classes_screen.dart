@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../core/routes/app_routes.dart';
-import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_error_state.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_text_field.dart';
 import 'class_detail_screen.dart';
 import 'data/class_repository.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_snack_bar.dart';
 
 class ClassesScreen extends StatefulWidget {
   const ClassesScreen({super.key});
@@ -16,7 +19,7 @@ class ClassesScreen extends StatefulWidget {
 
 class _ClassesScreenState extends State<ClassesScreen> {
   final ClassRepository _repository = ClassRepository();
-  late final Stream<List<ClassRecord>> _classesStream;
+  late Stream<List<ClassRecord>> _classesStream;
   bool _creating = false;
 
   @override
@@ -26,6 +29,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
   }
 
   Future<void> _showCreateClassDialog() async {
+    if (_creating) return;
     final newClass = await showDialog<ClassData>(
       context: context,
       builder: (_) => const _CreateClassDialog(),
@@ -37,9 +41,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
       await _repository.createClass(name: newClass.name, grade: newClass.grade);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível criar a turma: $error')),
-      );
+      AppSnackBar.error(context, 'Não foi possível criar a turma: $error');
     } finally {
       if (mounted) setState(() => _creating = false);
     }
@@ -52,6 +54,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
         builder: (_) => ClassDetailScreen(
           classId: selectedClass.id,
           className: selectedClass.name,
+          classGrade: selectedClass.grade,
         ),
       ),
     );
@@ -59,107 +62,107 @@ class _ClassesScreenState extends State<ClassesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Turmas', style: TextStyle(fontWeight: FontWeight.bold)),
+      appBar: AppBar(title: const Text('Turmas')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showCreateClassDialog,
+        icon: _creating
+            ? const SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(AppIcons.add),
+        label: Text(_creating ? 'Criando...' : 'Nova turma'),
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text('Minhas turmas', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text('Cadastre e organize seus alunos', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-            const SizedBox(height: 16),
-            AppButton(
-              label: _creating ? 'Criando turma...' : 'Nova turma',
-              icon: Icons.add,
-              expanded: true,
-              onPressed: _creating ? null : _showCreateClassDialog,
-            ),
-            const SizedBox(height: 14),
-            StreamBuilder<List<ClassRecord>>(
-              stream: _classesStream,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Text('Erro ao carregar turmas: ${snapshot.error}'),
+        child: StreamBuilder<List<ClassRecord>>(
+          stream: _classesStream,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return AppErrorState(
+                title: 'Não foi possível carregar as turmas',
+                description: '${snapshot.error}',
+                onRetry: () => setState(
+                  () => _classesStream = _repository.watchClasses(),
+                ),
+              );
+            }
+            if (!snapshot.hasData) return const AppLoading();
+
+            final classes = snapshot.data!;
+            if (classes.isEmpty) {
+              return const AppEmptyState(
+                icon: AppIcons.classes,
+                title: 'Nenhuma turma ainda',
+                description:
+                    'Toque em “Nova turma” para cadastrar ou importar seus alunos.',
+              );
+            }
+
+            return ListView.separated(
+              // Espaço extra no fim para o botão flutuante não cobrir o último item.
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 96),
+              itemCount: classes.length + 1,
+              separatorBuilder: (_, index) =>
+                  SizedBox(height: index == 0 ? 12 : 10),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Text(
+                    classes.length == 1 ? '1 turma' : '${classes.length} turmas',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   );
                 }
-                if (!snapshot.hasData) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                final classes = snapshot.data!;
-                if (classes.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text('Nenhuma turma cadastrada. Crie uma turma para começar.'),
-                  );
-                }
-                // Grade responsiva: em celular vira 1 coluna ocupando toda a
-                // largura; em telas largas cria mais colunas (cada cartão com
-                // no máximo 420 de largura), aproveitando o espaço horizontal.
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: classes.length,
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 420,
-                    mainAxisExtent: 88,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                  ),
-                  itemBuilder: (context, index) {
-                    final item = classes[index];
-                    return AppCard(
-                      onTap: () => _openClass(item),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${item.studentCount} alunos',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
+                final item = classes[index - 1];
+                return AppCard(
+                  onTap: () => _openClass(item),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: colorScheme.secondaryContainer,
+                        foregroundColor: colorScheme.onSecondaryContainer,
+                        child: const Icon(AppIcons.classes, size: 20),
                       ),
-                    );
-                  },
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              [
+                                if (item.grade.isNotEmpty) item.grade,
+                                item.studentCount == 1
+                                    ? '1 aluno'
+                                    : '${item.studentCount} alunos',
+                              ].join(' • '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(AppIcons.chevron, color: colorScheme.onSurfaceVariant),
+                    ],
+                  ),
                 );
               },
-            ),
-          ],
+            );
+          },
         ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 1,
-        onDestinationSelected: (index) {
-          switch (index) {
-            case 0: Navigator.pushReplacementNamed(context, AppRoutes.dashboard); break;
-            case 1: break;
-            case 2: Navigator.pushReplacementNamed(context, AppRoutes.exams); break;
-            case 3: Navigator.pushReplacementNamed(context, AppRoutes.correction); break;
-            case 4: _showMaisModal(context); break;
-          }
-        },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Início'),
-          NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: 'Turmas'),
-          NavigationDestination(icon: Icon(Icons.description_outlined), selectedIcon: Icon(Icons.description), label: 'Provas'),
-          NavigationDestination(icon: Icon(Icons.adjust_outlined), selectedIcon: Icon(Icons.adjust), label: 'Corrigir'),
-          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Mais'),
-        ],
       ),
     );
   }
@@ -176,14 +179,11 @@ class _CreateClassDialog extends StatefulWidget {
   const _CreateClassDialog();
 
   @override
-  State<_CreateClassDialog> createState() {
-    return _CreateClassDialogState();
-  }
+  State<_CreateClassDialog> createState() => _CreateClassDialogState();
 }
 
 class _CreateClassDialogState extends State<_CreateClassDialog> {
   final TextEditingController _nameController = TextEditingController();
-
   final TextEditingController _gradeController = TextEditingController();
 
   String? _nameError;
@@ -196,16 +196,12 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
     if (name.isEmpty || grade.isEmpty) {
       setState(() {
         _nameError = name.isEmpty ? 'Digite o nome da turma' : null;
-
         _gradeError = grade.isEmpty ? 'Digite a série da turma' : null;
       });
-
       return;
     }
 
-    final newClass = ClassData(name: name, grade: grade, studentCount: 0);
-
-    Navigator.pop(context, newClass);
+    Navigator.pop(context, ClassData(name: name, grade: grade));
   }
 
   @override
@@ -245,74 +241,14 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () {Navigator.pop(context);},
+          onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
-        FilledButton(onPressed: _createClass, child: const Text('Criar')),
+        FilledButton(
+          onPressed: _createClass,
+          child: const Text('Criar'),
+        ),
       ],
     );
   }
-}
-
-void _showMaisModal(BuildContext context) {
-  showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (ctx) {
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Mais opções',
-                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.assignment_outlined),
-                title: const Text('Resultados'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.pushNamed(context, AppRoutes.results);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.bar_chart_outlined),
-                title: const Text('Estatísticas'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.pushNamed(context, AppRoutes.statistics);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.upload_outlined),
-                title: const Text('Exportar'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.pushNamed(context, AppRoutes.export);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.settings_outlined),
-                title: const Text('Configurações'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.pushNamed(context, AppRoutes.config);
-                },
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
 }

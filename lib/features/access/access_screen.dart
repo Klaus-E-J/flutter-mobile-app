@@ -5,6 +5,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_text_field.dart';
 import 'view_models/auth_view_model.dart';
+import '../../core/theme/app_icons.dart';
 
 enum _AuthMode { signIn, signUp }
 
@@ -126,7 +127,7 @@ class _AccessScreenState extends State<AccessScreen> {
                 label: 'E-mail',
                 hint: 'exemplo@escola.com.br',
                 keyboardType: TextInputType.emailAddress,
-                prefixIcon: Icons.email_outlined,
+                prefixIcon: AppIcons.email,
               ),
             ],
           ),
@@ -224,7 +225,7 @@ class _AccessScreenState extends State<AccessScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: Icon(
-            Icons.school_rounded,
+            AppIcons.brand,
             size: 36,
             color: colorScheme.onPrimaryContainer,
           ),
@@ -285,9 +286,7 @@ class _AccessScreenState extends State<AccessScreen> {
       children: [
         Text(
           'Acesse sua conta',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 16),
         AppTextField(
@@ -295,7 +294,7 @@ class _AccessScreenState extends State<AccessScreen> {
           label: 'E-mail institucional ou pessoal',
           hint: 'exemplo@escola.com.br',
           keyboardType: TextInputType.emailAddress,
-          prefixIcon: Icons.email_outlined,
+          prefixIcon: AppIcons.email,
           enabled: !_viewModel.isLoading,
         ),
         const SizedBox(height: 16),
@@ -304,11 +303,11 @@ class _AccessScreenState extends State<AccessScreen> {
           label: 'Senha',
           hint: 'Digite sua senha',
           obscureText: _obscurePassword,
-          prefixIcon: Icons.lock_outline,
+          prefixIcon: AppIcons.password,
           enabled: !_viewModel.isLoading,
           suffixIcon: IconButton(
             icon: Icon(
-              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+              _obscurePassword ? AppIcons.show : AppIcons.hide,
             ),
             onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
           ),
@@ -323,7 +322,7 @@ class _AccessScreenState extends State<AccessScreen> {
         const SizedBox(height: 12),
         AppButton(
           label: 'Entrar',
-          icon: Icons.login,
+          icon: AppIcons.login,
           expanded: true,
           isLoading: _viewModel.isLoading,
           onPressed: _handleSignIn,
@@ -348,7 +347,7 @@ class _AccessScreenState extends State<AccessScreen> {
         const SizedBox(height: 20),
         AppButton(
           label: 'Acesso rápido como convidado',
-          icon: Icons.person_outline,
+          icon: AppIcons.student,
           variant: AppButtonVariant.secondary,
           expanded: true,
           isLoading: _viewModel.isLoading,
@@ -365,16 +364,14 @@ class _AccessScreenState extends State<AccessScreen> {
       children: [
         Text(
           'Cadastre-se como professor',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 16),
         AppTextField(
           controller: _nameController,
           label: 'Nome completo',
           hint: 'Prof. Carlos Silva',
-          prefixIcon: Icons.person_outline,
+          prefixIcon: AppIcons.student,
           enabled: !_viewModel.isLoading,
         ),
         const SizedBox(height: 16),
@@ -382,7 +379,7 @@ class _AccessScreenState extends State<AccessScreen> {
           controller: _schoolController,
           label: 'Escola ou instituição (opcional)',
           hint: 'Escola Municipal Exemplo',
-          prefixIcon: Icons.school_outlined,
+          prefixIcon: AppIcons.institution,
           enabled: !_viewModel.isLoading,
         ),
         const SizedBox(height: 16),
@@ -391,7 +388,7 @@ class _AccessScreenState extends State<AccessScreen> {
           label: 'E-mail',
           hint: 'carlos@escola.com.br',
           keyboardType: TextInputType.emailAddress,
-          prefixIcon: Icons.email_outlined,
+          prefixIcon: AppIcons.email,
           enabled: !_viewModel.isLoading,
         ),
         const SizedBox(height: 16),
@@ -400,11 +397,11 @@ class _AccessScreenState extends State<AccessScreen> {
           label: 'Senha',
           hint: 'Mínimo de 6 caracteres',
           obscureText: _obscurePassword,
-          prefixIcon: Icons.lock_outline,
+          prefixIcon: AppIcons.password,
           enabled: !_viewModel.isLoading,
           suffixIcon: IconButton(
             icon: Icon(
-              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+              _obscurePassword ? AppIcons.show : AppIcons.hide,
             ),
             onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
           ),
@@ -415,13 +412,13 @@ class _AccessScreenState extends State<AccessScreen> {
           label: 'Confirmar senha',
           hint: 'Repita sua senha',
           obscureText: _obscureConfirmPassword,
-          prefixIcon: Icons.lock_clock_outlined,
+          prefixIcon: AppIcons.password,
           enabled: !_viewModel.isLoading,
           suffixIcon: IconButton(
             icon: Icon(
               _obscureConfirmPassword
-                  ? Icons.visibility_outlined
-                  : Icons.visibility_off_outlined,
+                  ? AppIcons.show
+                  : AppIcons.hide,
             ),
             onPressed: () => setState(
               () => _obscureConfirmPassword = !_obscureConfirmPassword,
@@ -431,7 +428,7 @@ class _AccessScreenState extends State<AccessScreen> {
         const SizedBox(height: 24),
         AppButton(
           label: 'Cadastrar e começar',
-          icon: Icons.check_circle_outline,
+          icon: AppIcons.confirm,
           expanded: true,
           isLoading: _viewModel.isLoading,
           onPressed: _handleSignUp,
@@ -451,7 +448,7 @@ class _AccessScreenState extends State<AccessScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: colorScheme.onErrorContainer, size: 22),
+          Icon(AppIcons.error, color: colorScheme.onErrorContainer, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -480,7 +477,7 @@ class _AccessScreenState extends State<AccessScreen> {
       child: Row(
         children: [
           Icon(
-            Icons.check_circle_outline,
+            AppIcons.success,
             color: colorScheme.onPrimaryContainer,
             size: 22,
           ),

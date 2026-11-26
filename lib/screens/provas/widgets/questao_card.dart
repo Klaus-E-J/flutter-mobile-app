@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/app_snack_bar.dart';
+import '../../../core/widgets/app_dialog.dart';
 import '../models/questao_model.dart';
 import 'alternativa_item.dart';
 
@@ -83,14 +86,7 @@ class _QuestaoCardState extends State<QuestaoCard> {
 
   void _adicionarAlternativa() {
     if (widget.questao.alternativas.length >= Questao.maximoAlternativas) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Máximo de ${Questao.maximoAlternativas} alternativas atingido.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.show(context, 'Máximo de ${Questao.maximoAlternativas} alternativas atingido.');
       return;
     }
 
@@ -104,14 +100,7 @@ class _QuestaoCardState extends State<QuestaoCard> {
 
   void _removerAlternativa(int index) {
     if (widget.questao.alternativas.length <= Questao.minimoAlternativas) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Mínimo de ${Questao.minimoAlternativas} alternativas.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.show(context, 'Mínimo de ${Questao.minimoAlternativas} alternativas.');
       return;
     }
 
@@ -122,33 +111,16 @@ class _QuestaoCardState extends State<QuestaoCard> {
     if (_erros.isNotEmpty) _validar();
   }
 
-  void _confirmarRemocaoQuestao() {
-    showDialog<void>(
+  Future<void> _confirmarRemocaoQuestao() async {
+    final confirmed = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remover questão'),
-        content: Text(
-          'Deseja remover a Questão ${widget.numero}? '
+      title: 'Remover questão?',
+      message: 'Deseja remover a Questão ${widget.numero}? '
           'Esta ação não pode ser desfeita.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              widget.onRemover();
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Remover'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Remover',
+      destructive: true,
     );
+    if (confirmed) widget.onRemover();
   }
 
   @override
@@ -213,7 +185,6 @@ class _QuestaoCardState extends State<QuestaoCard> {
               child: Text(
                 '${widget.numero}',
                 style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
                   color: _erros.isNotEmpty
                       ? colorScheme.onErrorContainer
                       : colorScheme.onPrimaryContainer,
@@ -256,7 +227,7 @@ class _QuestaoCardState extends State<QuestaoCard> {
               Tooltip(
                 message: _erros.join('\n'),
                 child: Icon(
-                  Icons.warning_amber_rounded,
+                  AppIcons.warning,
                   size: 20,
                   color: colorScheme.error,
                 ),
@@ -267,7 +238,7 @@ class _QuestaoCardState extends State<QuestaoCard> {
               turns: _expandido ? 0.5 : 0,
               duration: const Duration(milliseconds: 200),
               child: Icon(
-                Icons.expand_more,
+                AppIcons.expandMore,
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
@@ -309,9 +280,7 @@ class _QuestaoCardState extends State<QuestaoCard> {
             children: [
               Text(
                 'Alternativas',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: theme.textTheme.titleSmall,
               ),
               const Spacer(),
               Text(
@@ -369,7 +338,7 @@ class _QuestaoCardState extends State<QuestaoCard> {
                   Questao.maximoAlternativas)
                 TextButton.icon(
                   onPressed: _adicionarAlternativa,
-                  icon: const Icon(Icons.add, size: 18),
+                  icon: const Icon(AppIcons.add, size: 18),
                   label: const Text('Alternativa'),
                 ),
 
@@ -378,14 +347,14 @@ class _QuestaoCardState extends State<QuestaoCard> {
               // Validar
               TextButton.icon(
                 onPressed: _validar,
-                icon: const Icon(Icons.check_circle_outline, size: 18),
+                icon: const Icon(AppIcons.validate, size: 18),
                 label: const Text('Validar'),
               ),
 
               // Remover questão
               TextButton.icon(
                 onPressed: _confirmarRemocaoQuestao,
-                icon: const Icon(Icons.delete_outline, size: 18),
+                icon: const Icon(AppIcons.delete, size: 18),
                 label: const Text('Remover'),
                 style: TextButton.styleFrom(
                   foregroundColor: colorScheme.error,
@@ -409,7 +378,7 @@ class _QuestaoCardState extends State<QuestaoCard> {
                   Row(
                     children: [
                       Icon(
-                        Icons.error_outline,
+                        AppIcons.error,
                         size: 16,
                         color: colorScheme.error,
                       ),

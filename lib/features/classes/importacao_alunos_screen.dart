@@ -1,104 +1,167 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_loading.dart';
 import 'data/class_repository.dart';
+import 'services/student_import_service.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_delete_button.dart';
+import '../../core/widgets/app_dialog.dart';
 
-/// Tela de Importação de Alunos.
+/// Dados de um arquivo selecionado para importação.
+typedef PickedImportFile = ({String name, Uint8List bytes});
+
+/// Tela de Importação de Alunos (N3-01).
 ///
-/// Permite importar alunos em lote para uma turma no Cloud Firestore.
+/// Permite selecionar um arquivo CSV ou Excel (.xlsx), validar linhas,
+/// detectar duplicidades e importar alunos em lote para uma turma no Cloud Firestore.
 class ImportacaoAlunosScreen extends StatefulWidget {
   const ImportacaoAlunosScreen({
     super.key,
     required this.nomeTurma,
     required this.classId,
+    this.existingStudents,
+    this.onPickFile,
+    this.onSaveStudents,
   });
 
   final String nomeTurma;
   final String classId;
+  final List<StudentRecord>? existingStudents;
+  final Future<PickedImportFile?> Function()? onPickFile;
+  final Future<void> Function(List<StudentRecord> students)? onSaveStudents;
 
   @override
   State<ImportacaoAlunosScreen> createState() => _ImportacaoAlunosScreenState();
 }
 
 class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
-  _ImportStep _step = _ImportStep.selecao;
-  String? _nomeArquivo;
-  bool _isLoading = false;
+  final StudentImportService _importService = const StudentImportService();
 
-  // Alunos simulados para importação rápida
-  static const _alunosMock = [
-    'Adriana Ferreira',
-    'Bruno Henrique',
-    'Camila Souza',
-    'Daniel Ribeiro',
-    'Eduarda Lima',
-    'Felipe Torres',
-    'Gabriela Nunes',
-    'Henrique Oliveira',
-    'Isabela Costa',
-    'João Pedro Alves',
-    'Karina Mendes',
-    'Lucas Carvalho',
-  ];
+  _ImportStep _step = _ImportStep.selecao;
+  StudentImportResult? _importResult;
+  List<StudentRecord> _selectedStudents = [];
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  Future<PickedImportFile?> _defaultPickFile() async {
+    final files = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['csv', 'xlsx', 'xls'],
+    );
+    if (files.isEmpty) return null;
+
+    final file = files.first;
+    final bytes = await file.readAsBytes();
+    return (name: file.name, bytes: bytes);
+  }
 
   Future<void> _selecionarArquivo() async {
-    setState(() => _isLoading = true);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-
     setState(() {
-      _isLoading = false;
-      _nomeArquivo = 'lista_alunos_${widget.nomeTurma.replaceAll(' ', '_')}.csv';
-      _step = _ImportStep.previa;
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final pickFn = widget.onPickFile ?? _defaultPickFile;
+      final picked = await pickFn();
+      if (!mounted) return;
+
+      if (picked == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      List<StudentRecord> existing = widget.existingStudents ?? const [];
+      if (widget.existingStudents == null && widget.onSaveStudents == null) {
+        try {
+          existing = await ClassRepository().getStudents(widget.classId);
+        } catch (_) {
+          existing = const [];
+        }
+      }
+
+      final parsed = _importService.parseBytes(
+        bytes: picked.bytes,
+        fileName: picked.name,
+        existingStudents: existing,
+      );
+
+      if (!mounted) return;
+
+      if (parsed.fatalError != null) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = parsed.fatalError;
+          _step = _ImportStep.erro;
+        });
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _importResult = parsed;
+        _selectedStudents = List<StudentRecord>.from(parsed.validStudents);
+        _step = _ImportStep.previa;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Erro ao ler o arquivo: $error';
+        _step = _ImportStep.erro;
+      });
+    }
+  }
+
+  void _removerAlunoDaPrevia(int index) {
+    setState(() {
+      _selectedStudents.removeAt(index);
     });
   }
 
   Future<void> _confirmarImportacao() async {
-    final confirmar = await showDialog<bool>(
+    if (_selectedStudents.isEmpty) return;
+
+    final confirmar = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmar importação'),
-        content: Text(
-          'Serão adicionados ${_alunosMock.length} alunos à turma '
-          '"${widget.nomeTurma}". Esta ação não pode ser desfeita.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Importar'),
-          ),
-        ],
-      ),
+      title: 'Confirmar importação',
+      message: 'Serão adicionados ${_selectedStudents.length} aluno(s) à turma '
+          '"${widget.nomeTurma}". Deseja continuar?',
+      confirmLabel: 'Importar',
     );
 
-    if (!(confirmar ?? false) || !mounted) return;
+    if (!confirmar || !mounted) return;
 
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
       _step = _ImportStep.importando;
     });
 
-    final repository = ClassRepository();
     try {
-      await repository.addStudents(
-        classId: widget.classId,
-        names: _alunosMock,
-      );
+      if (widget.onSaveStudents != null) {
+        await widget.onSaveStudents!(_selectedStudents);
+      } else {
+        await ClassRepository().addStudents(
+          classId: widget.classId,
+          students: _selectedStudents,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _isLoading = false;
         _step = _ImportStep.sucesso;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
+        _errorMessage = 'Não foi possível salvar os alunos: $error';
         _step = _ImportStep.erro;
       });
     }
@@ -107,7 +170,9 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
   void _reiniciar() {
     setState(() {
       _step = _ImportStep.selecao;
-      _nomeArquivo = null;
+      _importResult = null;
+      _selectedStudents = [];
+      _errorMessage = null;
     });
   }
 
@@ -117,26 +182,15 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
       canPop: _step == _ImportStep.selecao || _step == _ImportStep.sucesso,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        final result = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Cancelar importação?'),
-            content: const Text(
-              'Se sair agora, os dados selecionados serão descartados.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Continuar'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Sair'),
-              ),
-            ],
-          ),
-        );
-        if ((result ?? false) && context.mounted) {
+        final result = await AppDialog.confirm(
+      context: context,
+      title: 'Cancelar importação?',
+      message: 'Se sair agora, os dados selecionados serão descartados.',
+      confirmLabel: 'Sair',
+      cancelLabel: 'Continuar',
+      destructive: true,
+    );
+        if (result && context.mounted) {
           Navigator.of(context).pop();
         }
       },
@@ -177,13 +231,11 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
       children: [
         Text(
           'Importar lista de alunos',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.headlineSmall,
         ),
         const SizedBox(height: 4),
         Text(
-          'Adicione vários alunos de uma vez enviando um arquivo CSV ou Excel.',
+          'Adicione vários alunos de uma vez enviando um arquivo CSV ou Excel (.xlsx).',
           style: TextStyle(color: colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 32),
@@ -193,16 +245,14 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
           child: Column(
             children: [
               Icon(
-                Icons.upload_file_outlined,
+                AppIcons.import,
                 size: 48,
                 color: colorScheme.primary,
               ),
               const SizedBox(height: 16),
               Text(
                 'Selecionar arquivo',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
               Text(
@@ -222,9 +272,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
         const SizedBox(height: 24),
         Text(
           'Formato esperado',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
         AppCard(
@@ -233,21 +281,21 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildFormatoItem(
-                '1ª coluna',
-                'Nome completo do aluno',
-                Icons.person_outlined,
+                'Colunas suportadas',
+                'Nome completo (obrigatório), Matrícula/RA (opcional) e E-mail (opcional)',
+                AppIcons.student,
               ),
               const SizedBox(height: 10),
               _buildFormatoItem(
-                'Cabeçalho',
-                'Opcional — será ignorado automaticamente',
-                Icons.table_rows_outlined,
+                'Cabeçalho e delimitador',
+                'Cabeçalho detectado automaticamente; suporta vírgula (,), ponto e vírgula (;) ou Excel (.xlsx)',
+                AppIcons.spreadsheet,
               ),
               const SizedBox(height: 10),
               _buildFormatoItem(
-                'Codificação',
-                'UTF-8 recomendado para acentos',
-                Icons.code_outlined,
+                'Validação de duplicados',
+                'Nomes ou matrículas repetidas são filtrados automaticamente antes de importar',
+                AppIcons.success,
               ),
             ],
           ),
@@ -267,7 +315,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text(label, style: Theme.of(context).textTheme.titleSmall),
               Text(
                 descricao,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -284,6 +332,8 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
   Widget _buildPrevia() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final result = _importResult!;
+    final totalProblemas = result.duplicates.length + result.rejectedRows.length;
 
     return Column(
       children: [
@@ -294,13 +344,11 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             children: [
               Text(
                 'Prévia da importação',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.headlineSmall,
               ),
               const SizedBox(height: 4),
               Text(
-                'Arquivo: $_nomeArquivo',
+                'Arquivo: ${result.fileName}',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
@@ -312,13 +360,13 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.people_outlined,
+                      AppIcons.student,
                       color: colorScheme.primary,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        '${_alunosMock.length} alunos serão adicionados '
+                        '${_selectedStudents.length} aluno(s) válido(s) para adicionar '
                         'à turma "${widget.nomeTurma}"',
                         style: TextStyle(
                           color: colorScheme.onPrimaryContainer,
@@ -329,52 +377,138 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
                   ],
                 ),
               ),
+              if (totalProblemas > 0 || result.warnings.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                AppCard(
+                  color: colorScheme.errorContainer.withValues(alpha: 0.25),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            AppIcons.info,
+                            size: 18,
+                            color: colorScheme.error,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${result.duplicates.length} duplicado(s) ignorado(s) • '
+                              '${result.rejectedRows.length} linha(s) inválida(s)',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      for (final issue in result.duplicates.take(3))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 26),
+                          child: Text(
+                            '• Linha ${issue.lineNumber}: ${issue.rawDescription} (${issue.reason})',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                      for (final issue in result.rejectedRows.take(3))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 26),
+                          child: Text(
+                            '• Linha ${issue.lineNumber}: ${issue.reason}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                      for (final warning in result.warnings.take(2))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 26),
+                          child: Text(
+                            '• $warning',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
             ],
           ),
         ),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-            itemCount: _alunosMock.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              return AppCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: colorScheme.primaryContainer,
-                      child: Text(
-                        _alunosMock[index][0].toUpperCase(),
-                        style: TextStyle(
-                          color: colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
+          child: _selectedStudents.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Nenhum aluno novo e válido encontrado para importar.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _alunosMock[index],
-                        style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  itemCount: _selectedStudents.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final student = _selectedStudents[index];
+                    final subtitleParts = <String>[
+                      if (student.matricula.isNotEmpty)
+                        'Matrícula: ${student.matricula}',
+                      if (student.email.isNotEmpty) student.email,
+                    ];
+                    return AppCard(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
                       ),
-                    ),
-                    Icon(
-                      Icons.add_circle_outline,
-                      size: 18,
-                      color: colorScheme.primary,
-                    ),
-                  ],
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: colorScheme.primaryContainer,
+                            child: Text(
+                              student.name[0].toUpperCase(),
+                              style: TextStyle(
+                                color: colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  student.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (subtitleParts.isNotEmpty)
+                                  Text(
+                                    subtitleParts.join(' • '),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          AppDeleteButton(tooltip: 'Remover da importação', onPressed: () => _removerAlunoDaPrevia(index),
+  compact: true),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
         SafeArea(
           child: Padding(
@@ -384,9 +518,10 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
               children: [
                 AppButton(
                   label: 'Confirmar importação',
-                  icon: Icons.check,
+                  icon: AppIcons.confirm,
                   expanded: true,
-                  onPressed: _confirmarImportacao,
+                  onPressed:
+                      _selectedStudents.isNotEmpty ? _confirmarImportacao : null,
                 ),
                 const SizedBox(height: 8),
                 AppButton(
@@ -421,7 +556,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.check,
+                AppIcons.confirm,
                 size: 40,
                 color: colorScheme.onPrimaryContainer,
               ),
@@ -429,13 +564,11 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             const SizedBox(height: 24),
             Text(
               'Importação concluída!',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             Text(
-              '${_alunosMock.length} alunos foram adicionados à turma '
+              '${_selectedStudents.length} aluno(s) foram adicionados à turma '
               '"${widget.nomeTurma}".',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -445,7 +578,7 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
             const SizedBox(height: 32),
             AppButton(
               label: 'Voltar para a turma',
-              icon: Icons.arrow_back,
+              icon: AppIcons.back,
               expanded: true,
               onPressed: () => Navigator.of(context).pop(true),
             ),
@@ -466,38 +599,39 @@ class _ImportacaoAlunosScreenState extends State<ImportacaoAlunosScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.error_outline,
+              AppIcons.error,
               size: 56,
               color: colorScheme.error,
             ),
             const SizedBox(height: 16),
             Text(
               'Falha na importação',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             Text(
-              'Não foi possível importar os alunos. Verifique o arquivo e '
-              'tente novamente.',
+              _errorMessage ??
+                  'Não foi possível importar os alunos. Verifique o arquivo e '
+                      'tente novamente.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 32),
-            AppButton(
-              label: 'Tentar novamente',
-              icon: Icons.refresh,
-              expanded: true,
-              onPressed: _confirmarImportacao,
-            ),
-            const SizedBox(height: 12),
+            if (_selectedStudents.isNotEmpty) ...[
+              AppButton(
+                label: 'Tentar novamente',
+                icon: AppIcons.retry,
+                expanded: true,
+                onPressed: _confirmarImportacao,
+              ),
+              const SizedBox(height: 12),
+            ],
             AppButton(
               label: 'Escolher outro arquivo',
               variant: AppButtonVariant.secondary,
-              icon: Icons.folder_open_outlined,
+              icon: AppIcons.import,
               expanded: true,
               onPressed: _reiniciar,
             ),

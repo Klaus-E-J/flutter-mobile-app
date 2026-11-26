@@ -4,6 +4,9 @@ import 'data/firestore_statistics_repository.dart';
 import 'data/statistics_repository.dart';
 import 'views/class_stats_view.dart';
 import 'views/student_stats_view.dart';
+import '../../core/theme/app_icons.dart';
+import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_loading.dart';
 
 /// Tela principal de estatísticas.
 ///
@@ -72,7 +75,7 @@ class _StatisticsScreenState extends State<StatisticsScreen>
                 child: DropdownButtonFormField<String>(
                   initialValue: _selectedClass,
                   decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.groups_outlined),
+                    prefixIcon: Icon(AppIcons.classes),
                   ),
                   hint: const Text('Selecione a turma'),
                   items: _classes.map((className) {
@@ -103,39 +106,15 @@ class _StatisticsScreenState extends State<StatisticsScreen>
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoading();
     }
 
     if (_selectedClass == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.bar_chart_outlined,
-                size: 48,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Nenhuma turma disponível',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Cadastre turmas e realize correções para '
-                'ver as estatísticas aqui.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
+      return const AppEmptyState(
+        icon: AppIcons.statistics,
+        title: 'Nenhuma turma disponível',
+        description:
+            'Cadastre turmas e realize correções para ver as estatísticas aqui.',
       );
     }
 

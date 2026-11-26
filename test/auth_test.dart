@@ -208,15 +208,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Configurações'), findsOneWidget);
-      expect(find.text('Acesso e código institucional'), findsOneWidget);
       expect(find.text('Sair da conta'), findsOneWidget);
-
-      // Expand Access Code panel
-      await tester.tap(find.text('Acesso e código institucional'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Código de acesso do professor'), findsOneWidget);
-      expect(find.text('Visualizar'), findsOneWidget);
+      expect(find.text('Acesso e código institucional'), findsNothing);
     });
   });
 }

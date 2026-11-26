@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/routes/app_routes.dart';
 import 'core/services/firebase_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/app_icons.dart';
 
 class AvaliaProApp extends StatelessWidget {
   const AvaliaProApp({super.key, this.firebaseInitialized = true});
@@ -65,7 +66,7 @@ extends State<_FirebaseInitializationErrorScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.cloud_off_outlined, size: 48),
+                const Icon(AppIcons.cloudOff, size: 48),
                 const SizedBox(height: 16),
                 Text('Não foi possível conectar ao Firebase', style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
                 const SizedBox(height: 8),
