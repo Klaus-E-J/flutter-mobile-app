@@ -1,4 +1,4 @@
-# Avalia Pro — Sistema Mobile de Avaliações, Geração de Variantes e Correção OMR (Entrega Final N3)
+# Avalia Pro — Sistema Mobile de Avaliações, Geração de Variantes e Correção
 
 ## 1. Resumo do Projeto
 
